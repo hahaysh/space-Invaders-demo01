@@ -93,6 +93,20 @@ src/main.js의 기존 키 핸들러에서 KeyP와 repeat 무시를 처리하고 
 
 기존 DOM 상태·overlay/message/detail을 재사용해 일시정지와 P 재개 안내를 표시한다. 정지 화면에는 시작·재시작 버튼을 숨기고 새 버튼을 추가하지 않는다(AC4). 1/120초 고정 스텝과 프레임 상한·원래 수치·승패·완전 재시작은 그대로 회귀 검사한다(AC8). 이 절은 구현 전 채택이며 실제 결과는 TEST_RESULTS의 후속 회차로 기록한다.
 
+## 10. CHG-02 설계 채택 (08-01)
+
+src/game.js에 불변 DIFFICULTIES 설정을 두고 easy/normal/hard의 표시 이름과 적 속도를 함께 정의한다. normal의 속도는 기존 RULES.enemySpeed(64)를 재사용한다. 상태에는 selectedDifficulty(다음 선택)와 difficulty(이번 게임)를 구분한다. createState(difficulty = 'normal')는 둘을 같은 값으로 초기화하며 누락/undefined만 기본값을 적용한다. 지원하지 않는 문자열·null·다른 타입·상속 속성 이름은 TypeError로 드러낸다(AC1/5/9).
+
+순수 selectDifficulty(state, value)는 상태와 값을 검증하고 title/won/lost에서 selectedDifficulty만 바꾼다. playing/paused의 유효한 변경 시도는 같은 상태를 반환한다. 지원하지 않는 값은 상태와 무관하게 명시적 오류다. start/restart가 createState(state.selectedDifficulty)를 사용해 이번 게임에 적용하며 이후 P나 update가 이를 바꾸지 않는다(AC2/3/4/7).
+
+moveFormation에 이번 게임 설정의 enemySpeed를 전달한다. 기존 travel = speed * dt와 그 travel을 사용한 경계 비교·위치 제한을 유지한다. 현재 별도 벽 도달 시간 계산은 없으므로 새 시간 알고리즘을 추가하지 않으며 거리와 경계에 다른 속도가 남지 않게 한다(AC6/10).
+
+index.html/src/styles.css에 label이 있는 기본 select와 난이도 텍스트를 추가하고 src/main.js가 change를 모델에 전달한다. 렌더링 때 모델 값으로 select를 다시 맞추고 playing/paused에서는 disabled로 설정한다. title의 텍스트는 선택값, 시작 뒤 텍스트는 이번 게임값으로 표시한다. 다음 선택을 바꿔도 이미 끝난 게임의 설정은 보존한다. 기존 nativeControl/focusin 입력 처리를 유지하여 select의 방향키·Enter·P를 가로채지 않는다(AC4/5/8).
+
+잘못된 UI 값은 기존 fail의 한국어 오류·console.error 경로로 알리고 입력을 차단한다. 이미 예약된 frame도 failed 상태에서 더 진행하거나 새 RAF를 예약하지 않게 한다. 조작된 DOM 이벤트와 잘못된 값 검사는 제품 전역 API 대신 실제 DOM 이벤트와 명시적 오류 표시로 확인한다. 설정·상태를 window에 노출하거나 브라우저 저장을 추가하지 않는다.
+
+설계 시 현재의 P·편대·입력 구조와 충돌은 없었다. D1 모델/Node를 먼저 검증한 뒤 D2 UI/Chromium을 진행하며 현재는 문서만 채택한다.
+
 ## 설계 승인
 
 03-02 당시 사용자 위임에 따라 에이전트가 PRD·TRD의 최초 REQ-01~08과 구현 범위를 검토·채택했다. 그 시점은 게임 미구현·미검증 상태였으며 구현을 막는 설계 보류 사항은 없고 다음 범위는 04-01 구현 계획이었다. 당시 테스트가 통과했거나 사람이 개별 승인했다는 뜻은 아니다. P 일시정지·난이도·목숨은 후속 범위이며 미리 구현하지 않는다.
