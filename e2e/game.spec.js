@@ -5,10 +5,18 @@ const input = (page) => page.evaluate(() => window.__ORBIT_TEST__.input());
 const advance = (page, ms) => page.clock.runFor(ms);
 
 test.beforeEach(async ({ page }) => {
+  const failures = [];
+  page.on('pageerror', (error) => failures.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') failures.push(message.text()); });
+  page.testErrors = failures;
   await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
   await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.__ORBIT_TEST__));
+});
+
+test.afterEach(async ({ page }) => {
+  expect(page.testErrors).toEqual([]);
 });
 
 test('REQ-01/08 semantic title, inactive keys and responsive logical Canvas', async ({ page }) => {
@@ -206,4 +214,114 @@ test('REQ-05 injected overlap fixture uses the actual loop and scores once', asy
   await expect(page.locator('#score')).toHaveText('10');
   await advance(page, 300);
   expect((await snapshot(page)).score).toBe(10);
+});
+
+for (const ending of ['won', 'lost']) {
+  for (const method of ['key', 'button']) {
+    test(`REQ-06/07 injected ${ending} freezes; ${method} restart clears every field and held key`, async ({ page }) => {
+      await page.keyboard.press('Enter');
+      const initial = await snapshot(page);
+      await page.evaluate((mode) => {
+        const game = window.__ORBIT_TEST__.snapshot();
+        game.player.x = 17;
+        game.enemies = [{ ...game.enemies[0], y: 496 }];
+        game.enemyDirection = -1;
+        game.score = 230;
+        game.cooldown = .17;
+        game.bullets = [{ x: mode === 'won' ? 120 : 400, y: mode === 'won' ? 508 : 300, width: 4, height: 12 }];
+        window.__ORBIT_TEST__.inject(game);
+      }, ending);
+      await page.keyboard.down('ArrowRight');
+      await page.keyboard.down('Space');
+      await advance(page, 32);
+      const frozen = await snapshot(page);
+      expect(frozen.mode).toBe(ending);
+      expect(frozen.score).toBe(ending === 'won' ? 240 : 230);
+      expect(await input(page)).toEqual({ left: false, right: false, fire: false });
+      await expect(page.locator('#status')).toContainText(ending === 'won' ? '승리' : '패배');
+      await expect(page.getByRole('button', { name: '다시 도전' })).toBeVisible();
+      await expect(page.locator('#detail')).toContainText(`최종 점수 ${frozen.score}점`);
+      const steps = await page.evaluate(() => window.__ORBIT_TEST__.timing().steps);
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('p');
+      await page.keyboard.down('ArrowLeft');
+      await advance(page, 1000);
+      expect(await snapshot(page)).toEqual(frozen);
+      expect(await page.evaluate(() => window.__ORBIT_TEST__.timing().steps)).toBe(steps);
+      if (method === 'key') await page.keyboard.press('r');
+      else await page.getByRole('button', { name: '다시 도전' }).click();
+      expect(await snapshot(page)).toEqual(initial);
+      expect(await input(page)).toEqual({ left: false, right: false, fire: false });
+      await page.keyboard.down('ArrowRight');
+      await page.keyboard.down('Space');
+      await advance(page, 64);
+      expect((await snapshot(page)).player.x).toBe(380);
+      expect((await snapshot(page)).bullets).toHaveLength(0);
+      await page.keyboard.up('ArrowRight');
+      await page.keyboard.up('ArrowLeft');
+      await page.keyboard.up('Space');
+      await page.keyboard.down('Space');
+      await advance(page, 16);
+      expect((await snapshot(page)).bullets).toHaveLength(1);
+      await page.keyboard.up('Space');
+      expect(await page.evaluate(() => document.activeElement.tagName)).not.toBe('BUTTON');
+    });
+  }
+}
+
+test('REQ-06 injected full wave collision produces 240-point victory through actual RAF', async ({ page }, testInfo) => {
+  await page.getByRole('button', { name: '방어 시작' }).click();
+  await page.evaluate(() => {
+    const game = window.__ORBIT_TEST__.snapshot();
+    game.bullets = game.enemies.map((enemy) => ({ x: enemy.x + 8, y: enemy.y + 10, width: 4, height: 12 }));
+    window.__ORBIT_TEST__.inject(game);
+  });
+  await advance(page, 32);
+  expect((await snapshot(page)).mode).toBe('won');
+  expect((await snapshot(page)).enemies).toHaveLength(0);
+  await expect(page.locator('#score')).toHaveText('240');
+  await expect(page.getByRole('heading', { name: '궤도를 지켜냈습니다' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('won.png') });
+});
+
+test('REQ-07 repeated endings/restarts keep one RAF and exact movement speed', async ({ page }) => {
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 4; i += 1) {
+    await page.evaluate(() => {
+      const game = window.__ORBIT_TEST__.snapshot();
+      game.enemies = [];
+      game.score = 240;
+      window.__ORBIT_TEST__.inject(game);
+    });
+    await advance(page, 32);
+    await page.keyboard.press('r');
+  }
+  await advance(page, 32);
+  const beforeSteps = await page.evaluate(() => window.__ORBIT_TEST__.timing().steps);
+  const x = (await snapshot(page)).player.x;
+  await page.keyboard.down('ArrowRight');
+  await advance(page, 500);
+  const afterSteps = await page.evaluate(() => window.__ORBIT_TEST__.timing().steps);
+  expect(afterSteps - beforeSteps).toBeGreaterThanOrEqual(58);
+  expect(afterSteps - beforeSteps).toBeLessThanOrEqual(62);
+  expect((await snapshot(page)).player.x - x).toBeCloseTo((afterSteps - beforeSteps) / 120 * 320, 8);
+  await page.keyboard.up('ArrowRight');
+});
+
+test('REQ-01 held title keys and their repeats never leak into a newly started round', async ({ page }) => {
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.down('Space');
+  await page.keyboard.press('Enter');
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.down('Space');
+  await advance(page, 300);
+  expect((await snapshot(page)).player.x).toBe(380);
+  expect((await snapshot(page)).bullets).toHaveLength(0);
+  await page.keyboard.up('ArrowLeft');
+  await page.keyboard.up('Space');
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.down('Space');
+  await advance(page, 32);
+  expect((await snapshot(page)).player.x).toBeLessThan(380);
+  expect((await snapshot(page)).bullets).toHaveLength(1);
 });

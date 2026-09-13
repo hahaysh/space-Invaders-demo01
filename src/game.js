@@ -37,7 +37,7 @@ function finite(value, name) {
 }
 
 export function validateState(state) {
-  if (!state || !['title', 'playing'].includes(state.mode)) throw new TypeError('Invalid game mode');
+  if (!state || !['title', 'playing', 'won', 'lost'].includes(state.mode)) throw new TypeError('Invalid game mode');
   if (!Array.isArray(state.bullets)) throw new TypeError('bullets must be an array');
   if (!Array.isArray(state.enemies) || state.enemies.length > 24) throw new TypeError('Invalid enemies');
   if (![1, -1].includes(state.enemyDirection)) throw new TypeError('Invalid enemy direction');
@@ -50,11 +50,22 @@ export function validateState(state) {
     for (const key of ['x', 'y', 'width', 'height']) finite(rect[key], key);
     if (rect.width <= 0 || rect.height <= 0) throw new RangeError('Invalid rectangle size');
   }
+  if (state.player.x < 0 || state.player.x > RULES.width - RULES.playerWidth ||
+      state.player.y !== RULES.playerY || state.player.width !== RULES.playerWidth ||
+      state.player.height !== RULES.playerHeight) throw new RangeError('Invalid player geometry');
+  if (state.enemies.some((enemy) => enemy.x < 0 || enemy.x + enemy.width > RULES.width ||
+      enemy.y < 0 || enemy.width !== RULES.enemyWidth || enemy.height !== RULES.enemyHeight)) {
+    throw new RangeError('Invalid enemy geometry');
+  }
+  if (state.bullets.some((bullet) => bullet.width !== RULES.bulletWidth || bullet.height !== RULES.bulletHeight)) {
+    throw new RangeError('Invalid bullet geometry');
+  }
   finite(state.cooldown, 'cooldown');
   if (state.cooldown < 0) throw new RangeError('Negative cooldown');
   if (!Number.isInteger(state.score) || state.score < 0 || state.score > 240 || state.score % RULES.pointsPerEnemy !== 0) {
     throw new RangeError('Invalid score');
   }
+  if (state.score + state.enemies.length * RULES.pointsPerEnemy > 240) throw new RangeError('Inconsistent score and survivors');
   return state;
 }
 
@@ -62,6 +73,7 @@ export function transition(state, action) {
   validateState(state);
   if (!['start', 'restart'].includes(action)) throw new TypeError('Unknown game action');
   if (action === 'start' && state.mode === 'title') return { ...createState(), mode: 'playing' };
+  if (action === 'restart' && ['won', 'lost'].includes(state.mode)) return { ...createState(), mode: 'playing' };
   return state;
 }
 
@@ -123,5 +135,7 @@ export function update(state, input, dt) {
     next.score += RULES.pointsPerEnemy;
     return false;
   });
+  if (next.enemies.some((enemy) => enemy.y + enemy.height >= RULES.defenseY)) next.mode = 'lost';
+  else if (next.enemies.length === 0) next.mode = 'won';
   return next;
 }

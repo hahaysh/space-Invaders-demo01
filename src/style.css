@@ -26,10 +26,14 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; backgro
 .briefing { max-width: 450px; text-align: center; padding: 30px; border: 1px solid #58698770; border-radius: 16px; background: #0e1932eb; box-shadow: 0 20px 60px #0006; }
 h2 { font-size: clamp(22px, 4vw, 32px); letter-spacing: -.05em; margin: 12px 0; }
 .briefing > p:not(.eyebrow) { color: #b8c7df; font-size: 14px; line-height: 1.8; }
+.overlay[data-outcome="won"] .briefing { border-color: #89efd2; }
+.overlay[data-outcome="lost"] .briefing { border-color: #e7a5ac; }
+.overlay[data-outcome="lost"] h2 { color: #ffb9c0; }
 button { margin-top: 16px; padding: 15px 24px; border: 1px solid #94ffe0; border-radius: 8px; background: #89efd2; color: #092a2c; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 0 26px #89efd21a; }
 button span { margin-left: 14px; font: 600 10px ui-monospace, monospace; opacity: .75; }
 button:hover { background: #b4ffe9; }
 button:focus-visible { outline: 3px solid #fff; outline-offset: 5px; }
+button:disabled { opacity: .55; cursor: not-allowed; }
 .dashboard { display: flex; justify-content: space-between; gap: 16px; align-items: center; font-size: 12px; margin-top: 12px; color: #a8b8d1; }
 #status { color: #8ef2d8; }
 #status::before { content: "●"; font-size: 8px; margin-right: 8px; }

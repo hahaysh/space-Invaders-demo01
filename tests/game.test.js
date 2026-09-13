@@ -73,6 +73,11 @@ test('Invalid time, input, state and actions fail explicitly', () => {
   assert.throws(() => update({ ...playing(), mode: 'paused' }, idleInput(), 0), /mode/);
   assert.throws(() => update({ ...playing(), cooldown: -1 }, idleInput(), 0), /cooldown/);
   assert.throws(() => update({ ...playing(), bullets: [{}] }, idleInput(), 0), /finite/);
+  for (const x of [-.001, 760.001, Infinity]) {
+    const game = playing();
+    game.player.x = x;
+    assert.throws(() => update(game, idleInput(), 0));
+  }
 });
 
 test('Clock fixed 1/120, cap 0.1, reset and invalid timestamps', () => {
@@ -201,4 +206,74 @@ test('REQ-04/05 rejects invalid enemy identities, direction and score', () => {
   assert.throws(() => update({ ...game, enemyDirection: 0 }, idleInput(), 0), /direction/);
   assert.throws(() => update({ ...game, enemies: [game.enemies[0], game.enemies[0]] }, idleInput(), 0), /identity/);
   for (const score of [-10, 1, 250, NaN]) assert.throws(() => update({ ...game, score }, idleInput(), 0), /score/);
+  assert.throws(() => update({ ...game, score: 240 }, idleInput(), 0), /score/);
+  assert.throws(() => update({ ...game, enemies: [{ ...game.enemies[0], x: 761 }] }, idleInput(), 0), /geometry/);
+  assert.throws(() => update({ ...game, enemies: [{ ...game.enemies[0], width: 41 }] }, idleInput(), 0), /geometry/);
+});
+
+test('REQ-06 survivor bottom below / exactly at / above 520 determines loss', () => {
+  for (const [y, mode] of [[495.999, 'playing'], [496, 'lost'], [496.001, 'lost']]) {
+    const game = playing();
+    game.enemies = [{ ...game.enemies[0], y }];
+    assert.equal(update(game, idleInput(), 0).mode, mode);
+  }
+});
+
+test('REQ-06 collision precedes defeat: removed dangerous enemy never causes loss', () => {
+  const game = playing();
+  game.enemies = [{ ...game.enemies[0], y: 496 }];
+  game.score = 230;
+  game.bullets = [{ x: 120, y: 500, width: 4, height: 12 }];
+  const winner = update(game, idleInput(), 0);
+  assert.equal(winner.mode, 'won');
+  assert.equal(winner.score, 240);
+  assert.equal(winner.enemies.length, 0);
+  const stillPlaying = update({ ...game, enemies: [...game.enemies, { ...createEnemies()[1] }], score: 220 }, idleInput(), 0);
+  assert.equal(stillPlaying.mode, 'playing');
+  const defeated = update({
+    ...game, enemies: [...game.enemies, { ...createEnemies()[1], y: 496 }], score: 220,
+  }, idleInput(), 0);
+  assert.equal(defeated.mode, 'lost');
+  assert.equal(defeated.score, 230);
+  assert.equal(defeated.enemies.length, 1);
+});
+
+test('REQ-06 boundary descent is reflected before loss and full clearing wins at 240', () => {
+  const game = playing();
+  game.enemies = [{ ...game.enemies[0], x: 759, y: 472 }];
+  assert.equal(update(game, idleInput(), .1).mode, 'lost');
+  const all = playing();
+  all.bullets = all.enemies.map((enemy) => ({ x: enemy.x + 2, y: enemy.y + 2, width: 4, height: 12 }));
+  const won = update(all, idleInput(), 0);
+  assert.equal(won.mode, 'won');
+  assert.equal(won.score, 240);
+});
+
+test('REQ-06/07 both endings freeze all state and restart to independent initial state', () => {
+  for (const mode of ['won', 'lost']) {
+    const game = {
+      ...playing(), mode, score: 230, enemies: [{ ...createEnemies()[0], y: 496 }],
+      bullets: [{ x: 120, y: 500, width: 4, height: 12 }], enemyDirection: -1, cooldown: .17,
+      player: { x: 17, y: 550, width: 40, height: 20 },
+    };
+    const saved = structuredClone(game);
+    assert.equal(run(game, { left: true, fire: true }, 120), game);
+    assert.deepEqual(game, saved);
+    assert.equal(transition(game, 'start'), game);
+    const restarted = transition(game, 'restart');
+    assert.deepEqual(restarted, playing());
+    assert.notEqual(restarted.player, game.player);
+    assert.notEqual(restarted.enemies, game.enemies);
+    assert.equal(update(restarted, { ...idleInput(), fire: true }, 0).bullets.length, 1);
+    assert.deepEqual(game, saved);
+  }
+});
+
+test('REQ-06 a complete no-input round reaches defeat without extra enemies or waves', () => {
+  const game = run(playing(), {}, 6600);
+  assert.equal(game.mode, 'lost');
+  assert.equal(game.score, 0);
+  assert.equal(game.enemies.length, 24);
+  assert.ok(game.enemies.some((enemy) => enemy.y + enemy.height >= 520));
+  assert.equal(run(game, {}, 1200), game);
 });

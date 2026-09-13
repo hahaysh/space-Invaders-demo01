@@ -23,6 +23,7 @@
 - 03-02에서 PRD·TRD를 위임에 따라 검토·채택했다. 제품 규칙은 PRD, 파일 책임·입력·시간·렌더링 설계는 TRD를 기준으로 한다. M1 시작·이동·발사, M2 적·충돌·점수, M3 종료·재시작 순서를 지키며 후속 기능을 선행 구현하지 않는다.
 - 모델은 DOM·실시간 시계와 분리하고 명시적 입력·시간으로 검증한다. 경계·금지 동작과 오류 입력을 포함하며 PRD 수치를 느슨하게 바꾸어 테스트 실패를 숨기지 않는다. 수정 후 해당 테스트와 기존 회귀를 다시 실행한다.
 - 04-02 M1에서 npm test(Node의 tests/*.test.js만 수집) 8개, npm run test:e2e(실제 Chromium) 6개, npm run build를 실행해 모두 pass였다. M1은 REQ-01/02/03과 로컬 REQ-08만 포함하며 M2/M3의 적·종료는 이 결과에 포함하지 않는다.
+- 04-03 M2에서 모델·빌드 검사 15개와 Chromium E2E 9개, M3에서 모델·빌드 검사 20개와 Chromium E2E 18개 및 npm run build가 모두 pass였다. M2와 M3는 개별 검증·커밋·게시하며 M3의 REQ-06/07/08 종료·재시작 이후에 멈춘다.
 - 테스트용 상태 제어는 개발 환경으로 한정하고 배포 빌드에 남지 않는지 확인한다. 실제 키·버튼 조작 검증과 상태 주입 검증을 구분한다. 생성물·node_modules·테스트 임시 결과를 커밋하지 않는다.
 
 ## 실제 로컬 명령·환경 (04-02 M1)
@@ -33,6 +34,13 @@
 - npm run preview: 127.0.0.1:4176 strictPort. 실제 실행 후 HTTP 200·상대 에셋 응답을 확인하고 해당 서버를 종료했다.
 - 브라우저 시간은 page.clock으로 제어한다. 개발 전용 window.__ORBIT_TEST__의 snapshot/input/timing은 관찰용, inject는 명시적으로 주입한 모델 상태 재현용이다. import.meta.env.DEV 분기 전체가 프로덕션 빌드에서 제거된다.
 - blur/visibility 검사는 브라우저 이벤트·document.hidden 제어 검증이다. 실제 사람 플레이, OS 수준 포커스, 공개 게임 URL·Pages 배포는 unverified이며 자동 시험을 사람 확인으로 기록하지 않는다.
+
+## M3 통합 검증과 파일 책임 (04-03)
+- npm run test:e2e는 이제 개발 서버 4175와 빌드 후 preview 서버 4176을 함께 관리한다. 후자는 npm run build && npm run preview -- --base /space-Invaders-demo01/로 실행한다. 두 서버 모두 재사용하지 않으며 종료 후 포트 수신자가 없음을 확인한다. 일반 npm run dev는 여전히 5175다.
+- src/game.js의 createState/createEnemies/idleInput/transition/update/validateState/overlaps와 RULES가 순수 모델 API다. update는 명시적 입력과 0~0.1초 시간만 받고 원본 상태를 변경하지 않는다. src/clock.js의 createClock은 1/120초 고정 스텝·프레임 0.1초 상한·reset을 담당하고 src/main.js만 DOM·키·단일 RAF·렌더링을 담당한다.
+- tests/game.test.js는 수치·충돌·승패 우선순위·완전 초기화·금지 상태·잘못된 입력을 검증한다. e2e/game.spec.js의 종료 재현은 개발 상태 주입 이후 실제 모델/RAF를 사용하며 사람의 완주가 아니다. 일반 시작·이동·발사·명중·재시작 입력은 실제 Chromium 키·버튼으로 검사한다.
+- e2e/production.spec.js는 실제 dist preview의 저장소 하위 경로에서 한국어 DOM·발사·점수·상대 JS/CSS 요청, 외부 요청과 개발 훅 부재, 좁은 화면 표시를 검증한다. Canvas 컨텍스트 부재는 명시적 실패 주입으로 한국어 오류 표시·추가 입력 차단을 확인한다. 공개 Pages 검증과 구분한다.
+- test-results의 화면 캡처는 자동 생성된 무시 대상이며 공개 커밋에 포함하지 않는다. TEST_PLAN.md/TEST_RESULTS.md는 여전히 05에서 작성하며 이번 단계에는 만들지 않는다.
 
 ## 변경 보존과 공개 안전
 - 기존 사용자 변경을 삭제·되돌리거나 관련 없는 변경을 커밋에 섞지 않는다. 예상 밖 변경이나 출처가 불명확한 변경이 있으면 보고하고 확인한다.

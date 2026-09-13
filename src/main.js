@@ -5,11 +5,15 @@ import { createClock } from './clock.js';
 const canvas = document.querySelector('#game');
 const ctx = canvas.getContext('2d');
 const start = document.querySelector('#start');
+const restart = document.querySelector('#restart');
 const overlay = document.querySelector('#overlay');
+const message = document.querySelector('#message');
+const detail = document.querySelector('#detail');
 const status = document.querySelector('#status');
 const score = document.querySelector('#score');
 const error = document.querySelector('#error');
 let state = createState();
+let failed = false;
 const held = new Set();
 const controls = new Set(['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'Space', 'Enter', 'KeyR']);
 const nativeControl = (target) => target instanceof Element && Boolean(target.closest('button, input, select, textarea, a[href], [contenteditable]:not([contenteditable="false"])'));
@@ -18,23 +22,29 @@ const readInput = () => ({
   right: held.has('ArrowRight') || held.has('KeyD'),
   fire: held.has('Space'),
 });
-const clock = createClock((dt) => { state = update(state, readInput(), dt); });
+const clock = createClock((dt) => {
+  const previousMode = state.mode;
+  state = update(state, readInput(), dt);
+  if (state.mode !== previousMode) clearInput();
+});
 function clearInput() { held.clear(); clock.reset(); }
 
 function act(action) {
+  if (failed) return;
   const next = transition(state, action);
   if (next !== state) {
     state = next;
     clearInput();
-    // A clicked start button must not retain Space's native activation behavior.
-    if (document.activeElement === start) start.blur();
+    // A clicked game button must not retain Space's native activation behavior.
+    if ([start, restart].includes(document.activeElement)) document.activeElement.blur();
     render();
   }
 }
 
 start.addEventListener('click', () => act('start'));
+restart.addEventListener('click', () => act('restart'));
 window.addEventListener('keydown', (event) => {
-  if (nativeControl(event.target) || !controls.has(event.code)) return;
+  if (failed || nativeControl(event.target) || !controls.has(event.code)) return;
   event.preventDefault();
   if (event.code === 'Enter' && !event.repeat) act('start');
   else if (event.code === 'KeyR' && !event.repeat) act('restart');
@@ -105,13 +115,28 @@ function render() {
   ctx.fillStyle = '#ffe5a1';
   for (const bullet of state.bullets) ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
   score.value = String(state.score);
-  const label = state.mode === 'title' ? '출격 대기' : '방어 진행 중';
+  const labels = { title: '출격 대기', playing: '방어 진행 중', won: '승리 · 궤도 방어 성공', lost: '패배 · 방어선 도달' };
+  const label = labels[state.mode];
   if (status.textContent !== label) status.textContent = label;
-  overlay.hidden = state.mode !== 'title';
+  const ended = ['won', 'lost'].includes(state.mode);
+  overlay.hidden = state.mode === 'playing';
+  overlay.dataset.outcome = state.mode;
+  start.hidden = state.mode !== 'title';
+  restart.hidden = !ended;
+  if (ended) {
+    const title = state.mode === 'won' ? '궤도를 지켜냈습니다' : '방어선이 돌파되었습니다';
+    const summary = `최종 점수 ${state.score}점 · R 또는 다시 도전 버튼으로 새 임무를 시작하세요.`;
+    if (message.textContent !== title) message.textContent = title;
+    if (detail.textContent !== summary) detail.textContent = summary;
+  }
 }
 
 function fail(reason) {
+  failed = true;
   clearInput();
+  start.disabled = true;
+  restart.disabled = true;
+  status.textContent = '실행 오류';
   error.hidden = false;
   error.textContent = `게임을 실행할 수 없습니다: ${reason.message}`;
   console.error(reason);
@@ -119,7 +144,7 @@ function fail(reason) {
 
 function frame(timestamp) {
   try {
-    if (document.hidden) clock.reset();
+    if (document.hidden || state.mode !== 'playing') clock.reset();
     else clock.advance(timestamp);
     render();
     requestAnimationFrame(frame);
