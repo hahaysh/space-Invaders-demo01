@@ -119,18 +119,20 @@ test('CHG-01 AC3 pause freezes every value for 60 seconds and preserves exact co
   game.enemies.shift();
   game.score = 10;
   const fired = update(game, { ...idleInput(), fire: true }, 0);
-  const paused = transition(fired, 'togglePause');
-  const snapshot = structuredClone(paused);
-  for (let i = 0; i < 600; i += 1) {
-    assert.deepEqual(update(paused, { left: true, right: false, fire: true }, .1), snapshot);
+  for (const elapsedSteps of [0, 12]) {
+    const paused = transition(run(fired, {}, elapsedSteps), 'togglePause');
+    const snapshot = structuredClone(paused);
+    for (let i = 0; i < 600; i += 1) {
+      assert.deepEqual(update(paused, { left: true, right: false, fire: true }, .1), snapshot);
+    }
+    assert.deepEqual(paused, snapshot);
+    assert.equal(paused.score, 10);
+    assert.ok(Math.abs(paused.cooldown - (.2 - elapsedSteps / 120)) < 1e-12);
+    const resumed = transition(paused, 'togglePause');
+    const before = run(resumed, { fire: true }, 23 - elapsedSteps);
+    assert.equal(before.bullets.length, 1);
+    assert.equal(run(before, { fire: true }, 1).bullets.length, 2);
   }
-  assert.deepEqual(paused, snapshot);
-  assert.equal(paused.score, 10);
-  assert.equal(paused.cooldown, .2);
-  const resumed = transition(paused, 'togglePause');
-  const before = run(resumed, { fire: true }, 23);
-  assert.equal(before.bullets.length, 1);
-  assert.equal(run(before, { fire: true }, 1).bullets.length, 2);
 });
 
 test('CHG-01 AC6/7 repeated resume resets the time baseline without accumulating paused time', () => {
