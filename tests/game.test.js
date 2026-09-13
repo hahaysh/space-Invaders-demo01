@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RULES, createState, createEnemies, idleInput, transition, update, overlaps, createClock } from '../src/game.js';
+import { RULES, DIFFICULTIES, createState, createEnemies, selectDifficulty, idleInput, transition, update, overlaps, createClock } from '../src/game.js';
 import { build } from 'vite';
 import { readFile } from 'node:fs/promises';
 
@@ -152,6 +152,75 @@ test('CHG-01 AC6/7 repeated resume resets the time baseline without accumulating
     clock.advance(i * 60000 + 50);
     assert.equal(clock.inspect().steps, steps + 6);
     assert.ok(Math.abs(game.player.x - snapshot.player.x - 16) < 1e-9);
+  }
+});
+
+test('CHG-02 AC1/9 difficulty defaults are distinct from unsupported values', () => {
+  assert.deepEqual(Object.keys(DIFFICULTIES), ['easy', 'normal', 'hard']);
+  assert.equal(createState().difficulty, 'normal');
+  assert.deepEqual(createState(undefined), createState('normal'));
+  for (const invalid of ['', 'extreme', 'constructor', '__proto__', null, 0, {}]) {
+    assert.throws(() => createState(invalid), /Unsupported difficulty/);
+    assert.throws(() => selectDifficulty(playing(), invalid), /Unsupported difficulty/);
+  }
+  assert.throws(() => selectDifficulty(createState(), undefined), /Unsupported difficulty/);
+  assert.throws(() => update({ ...playing(), difficulty: 'extreme' }, idleInput(), 0), /difficulty/);
+  assert.throws(() => update({ ...playing(), selectedDifficulty: null }, idleInput(), 0), /difficulty/);
+});
+
+test('CHG-02 AC2/3/4 pending selection applies only on start or restart and is locked during play', () => {
+  for (const mode of ['title', 'won', 'lost']) {
+    const original = { ...createState(), mode };
+    const selected = selectDifficulty(original, 'hard');
+    assert.equal(selected.selectedDifficulty, 'hard');
+    assert.equal(selected.difficulty, 'normal');
+    assert.deepEqual({ ...selected, selectedDifficulty: 'normal' }, original);
+    const started = transition(selected, mode === 'title' ? 'start' : 'restart');
+    assert.deepEqual(started, { ...createState('hard'), mode: 'playing' });
+    assert.equal(selectDifficulty(started, 'easy'), started);
+    const paused = transition(started, 'togglePause');
+    assert.equal(selectDifficulty(paused, 'easy'), paused);
+    assert.equal(transition(paused, 'togglePause').difficulty, 'hard');
+  }
+});
+
+test('CHG-02 AC1/6/7 selected enemy speeds change distance only and every difficulty freezes', () => {
+  for (const [difficulty, speed] of [['easy', 32], ['normal', 64], ['hard', 96]]) {
+    assert.equal(DIFFICULTIES[difficulty].enemySpeed, speed);
+    const game = transition(createState(difficulty), 'start');
+    const next = update(game, { left: false, right: true, fire: true }, .1);
+    assert.ok(Math.abs(next.enemies[0].x - 112 - speed * .1) < 1e-9);
+    assert.equal(next.enemies.length, 24);
+    assert.equal(next.enemies[0].y, 72);
+    assert.equal(next.player.x, 412);
+    assert.equal(next.player.y, 550);
+    assert.equal(next.bullets[0].y, 478);
+    assert.equal(next.cooldown, .2);
+    const paused = transition(next, 'togglePause');
+    const snapshot = structuredClone(paused);
+    for (let i = 0; i < 600; i += 1) assert.deepEqual(update(paused, idleInput(), .1), snapshot);
+    assert.deepEqual(transition(paused, 'togglePause'), next);
+  }
+});
+
+test('CHG-02 AC6/10 every speed uses the same distance for both wall boundaries and one drop', () => {
+  for (const [difficulty, speed] of [['easy', 32], ['normal', 64], ['hard', 96]]) {
+    for (const direction of [-1, 1]) {
+      const game = transition(createState(difficulty), 'start');
+      game.enemies = [game.enemies[0]];
+      game.enemyDirection = direction;
+      game.enemies[0].x = direction === 1 ? 760 - speed * .05 : speed * .05;
+      const before = update(game, idleInput(), .049999);
+      assert.equal(before.enemyDirection, direction);
+      assert.equal(before.enemies[0].y, 72);
+      for (const dt of [.05, .050001]) {
+        const reached = update(game, idleInput(), dt);
+        assert.equal(reached.enemyDirection, -direction);
+        assert.equal(reached.enemies[0].x, direction === 1 ? 760 : 0);
+        assert.equal(reached.enemies[0].y, 96);
+        assert.equal(update(reached, idleInput(), .01).enemies[0].y, 96);
+      }
+    }
   }
 });
 

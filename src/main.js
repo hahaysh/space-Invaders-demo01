@@ -1,5 +1,5 @@
 import './styles.css';
-import { RULES, createState, transition, update, createClock } from './game.js';
+import { RULES, DIFFICULTIES, createState, selectDifficulty, transition, update, createClock } from './game.js';
 
 const canvas = document.querySelector('#game');
 const ctx = canvas.getContext('2d');
@@ -11,6 +11,8 @@ const detail = document.querySelector('#detail');
 const status = document.querySelector('#status');
 const score = document.querySelector('#score');
 const error = document.querySelector('#error');
+const difficulty = document.querySelector('#difficulty');
+const difficultyCurrent = document.querySelector('#difficulty-current');
 let state = createState();
 let failed = false;
 const held = new Set();
@@ -42,6 +44,13 @@ function act(action) {
 
 start.addEventListener('click', () => act('start'));
 restart.addEventListener('click', () => act('restart'));
+difficulty.addEventListener('change', () => {
+  if (failed) return;
+  try {
+    state = selectDifficulty(state, difficulty.value);
+    render();
+  } catch (reason) { fail(reason); }
+});
 window.addEventListener('keydown', (event) => {
   if (failed || nativeControl(event.target) || !controls.has(event.code)) return;
   event.preventDefault();
@@ -115,6 +124,12 @@ function render() {
   ctx.fillStyle = '#ffe5a1';
   for (const bullet of state.bullets) ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
   score.value = String(state.score);
+  difficulty.value = state.selectedDifficulty;
+  difficulty.disabled = ['playing', 'paused'].includes(state.mode);
+  const difficultyText = state.mode === 'title'
+    ? `선택 난이도: ${DIFFICULTIES[state.selectedDifficulty].label}`
+    : `이번 게임 난이도: ${DIFFICULTIES[state.difficulty].label}`;
+  if (difficultyCurrent.textContent !== difficultyText) difficultyCurrent.textContent = difficultyText;
   const labels = { title: '출격 대기', playing: '방어 진행 중', paused: '일시정지', won: '승리 · 궤도 방어 성공', lost: '패배 · 방어선 도달' };
   const label = labels[state.mode];
   if (status.textContent !== label) status.textContent = label;
@@ -140,6 +155,7 @@ function fail(reason) {
   clearInput();
   start.disabled = true;
   restart.disabled = true;
+  difficulty.disabled = true;
   status.textContent = '실행 오류';
   error.hidden = false;
   error.textContent = `게임을 실행할 수 없습니다: ${reason.message}`;
@@ -147,6 +163,7 @@ function fail(reason) {
 }
 
 function frame(timestamp) {
+  if (failed) return;
   try {
     if (document.hidden || state.mode !== 'playing') clock.reset();
     else clock.advance(timestamp);

@@ -10,17 +10,19 @@ async function picture(page) {
     const player = [];
     const bullets = [];
     let hash = 2166136261;
+    let enemyLeft = 800;
     for (let y = 0; y < 600; y += 1) {
       for (let x = 0; x < 800; x += 1) {
         const i = (y * 800 + x) * 4;
         hash = Math.imul(hash ^ data[i] ^ (data[i + 1] << 8) ^ (data[i + 2] << 16), 16777619);
         if (y >= 550 && data[i] === 131 && data[i + 1] === 241 && data[i + 2] === 212) player.push(x);
         if (data[i] === 255 && data[i + 1] === 229 && data[i + 2] === 161) bullets.push({ x, y });
+        if (data[i] === 169 && data[i + 1] === 186 && data[i + 2] === 255) enemyLeft = Math.min(enemyLeft, x);
       }
     }
     const rows = [...new Set(bullets.map((pixel) => pixel.y))].sort((a, b) => a - b);
     const bulletCount = rows.filter((y, i) => i === 0 || y !== rows[i - 1] + 1).length;
-    return { left: Math.min(...player), right: Math.max(...player), bulletCount, bulletXs: [...new Set(bullets.map((pixel) => pixel.x))], hash };
+    return { left: Math.min(...player), right: Math.max(...player), enemyLeft, bulletCount, bulletXs: [...new Set(bullets.map((pixel) => pixel.x))], hash };
   });
 }
 
@@ -31,6 +33,7 @@ async function listenerCounts(cdp) {
     ['document', ['focusin', 'visibilitychange']],
     ['document.querySelector("#start")', ['click']],
     ['document.querySelector("#restart")', ['click']],
+    ['document.querySelector("#difficulty")', ['change']],
   ];
   for (const [expression, eventTypes] of targets) {
     const { result } = await cdp.send('Runtime.evaluate', { expression });
@@ -178,7 +181,7 @@ test('REQ-08 native button and selector keyboard events remain native', async ({
   await page.keyboard.press('p');
   await advance(page, 100);
   await expect(page.locator('#status')).toHaveText('방어 진행 중');
-  await expect(page.getByRole('combobox')).not.toHaveAttribute('data-prevented', 'true');
+  await expect(page.getByRole('combobox', { name: '테스트용 네이티브 선택' })).not.toHaveAttribute('data-prevented', 'true');
   expect((await picture(page)).left).toBe(x);
   expect((await picture(page)).bulletCount).toBe(0);
 });
@@ -232,6 +235,7 @@ test('REQ-07 ten real restarts keep movement, firing and listener counts stable'
   expect(baseline[1]).toEqual(['focusin', 'visibilitychange']);
   expect(baseline[2]).toEqual(['click']);
   expect(baseline[3]).toEqual(['click']);
+  expect(baseline[4]).toEqual(['change']);
   await page.keyboard.press('Enter');
   for (let round = 0; round <= 10; round += 1) {
     await advance(page, 32);
@@ -327,6 +331,116 @@ test('CHG-01 AC5/6/7 ten pause cycles preserve speed, clear held keys and keep o
   await cdp.detach();
 });
 
+for (const [value, speed, label] of [['easy', 32, '쉬움'], ['normal', 64, '보통'], ['hard', 96, '어려움']]) {
+  test(`CHG-02 ${value} actual speed, locked selection and pause/cooldown`, async ({ page }) => {
+    const select = page.getByRole('combobox', { name: '다음 게임 난이도' });
+    await select.selectOption(value);
+    await expect(page.locator('#difficulty-current')).toHaveText(`선택 난이도: ${label}`);
+    await page.getByRole('button', { name: '방어 시작' }).click();
+    await advance(page, 32);
+    await expect(select).toBeDisabled();
+    await expect(page.locator('#difficulty-current')).toHaveText(`이번 게임 난이도: ${label}`);
+    const x = (await picture(page)).enemyLeft;
+    await advance(page, 512);
+    expect(Math.abs((await picture(page)).enemyLeft - x - speed * .512)).toBeLessThanOrEqual(speed / 120 + 1);
+    const forged = value === 'hard' ? 'easy' : 'hard';
+    await select.evaluate((element, other) => {
+      element.disabled = false;
+      element.value = other;
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }, forged);
+    await expect(select).toBeDisabled();
+    await expect(select).toHaveValue(value);
+    await page.keyboard.down('Space');
+    await advance(page, 16);
+    await page.keyboard.press('p');
+    await select.evaluate((element, other) => {
+      element.disabled = false;
+      element.value = other;
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }, forged);
+    await expect(select).toBeDisabled();
+    await expect(select).toHaveValue(value);
+    const frozen = await picture(page);
+    await page.clock.fastForward(60000);
+    expect(await picture(page)).toEqual(frozen);
+    await page.keyboard.press('p');
+    await advance(page, 64);
+    const resumed = await picture(page);
+    expect(resumed.left).toBe(frozen.left);
+    expect(Math.abs(resumed.enemyLeft - frozen.enemyLeft)).toBeLessThanOrEqual(speed * .064 + speed / 120 + 1);
+    expect(resumed.bulletCount).toBe(1);
+    await page.keyboard.up('Space');
+    await page.keyboard.down('Space');
+    await advance(page, 96);
+    expect((await picture(page)).bulletCount).toBe(1);
+    await advance(page, 64);
+    expect((await picture(page)).bulletCount).toBe(2);
+    await page.keyboard.up('Space');
+  });
+}
+
+test('CHG-02 native difficulty keyboard selection never starts play and refresh resets normal', async ({ page }) => {
+  const select = page.getByRole('combobox', { name: '다음 게임 난이도' });
+  await expect(select).toHaveValue('normal');
+  await select.focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('p');
+  await advance(page, 256);
+  await expect(page.locator('#status')).toHaveText('출격 대기');
+  await expect(select).toHaveValue('hard');
+  expect((await picture(page)).left).toBe(381);
+  expect((await picture(page)).bulletCount).toBe(0);
+  await select.evaluate((element) => element.blur());
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#difficulty-current')).toHaveText('이번 게임 난이도: 어려움');
+  await page.reload();
+  await expect(select).toHaveValue('normal');
+  await expect(page.locator('#difficulty-current')).toHaveText('선택 난이도: 보통');
+});
+
+async function clearWave(page) {
+  await page.keyboard.down('Space');
+  for (let i = 0; i < 30 && await score(page) < 240; i += 1) {
+    const key = i % 2 === 0 ? 'ArrowLeft' : 'ArrowRight';
+    await page.keyboard.down(key);
+    await advance(page, 1000);
+    await page.keyboard.up(key);
+  }
+  await page.keyboard.up('Space');
+  expect(await score(page)).toBe(240);
+}
+
+for (const outcome of ['won', 'lost']) {
+  test(`CHG-02 ${outcome} keeps current difficulty until an easy restart is applied`, async ({ page }) => {
+    test.setTimeout(90000);
+    const select = page.getByRole('combobox', { name: '다음 게임 난이도' });
+    await select.selectOption('hard');
+    await page.getByRole('button', { name: '방어 시작' }).click();
+    await advance(page, 32);
+    if (outcome === 'won') await clearWave(page);
+    else await advance(page, 40000);
+    await expect(page.locator('#status')).toContainText(outcome === 'won' ? '승리' : '패배');
+    await expect(select).toBeEnabled();
+    await select.selectOption('easy');
+    await expect(page.locator('#difficulty-current')).toHaveText('이번 게임 난이도: 어려움');
+    await page.getByRole('button', { name: '다시 도전' }).click();
+    await advance(page, 32);
+    await expect(page.locator('#difficulty-current')).toHaveText('이번 게임 난이도: 쉬움');
+    await expect(select).toBeDisabled();
+    expect(await score(page)).toBe(0);
+    const x = (await picture(page)).enemyLeft;
+    await advance(page, 512);
+    expect(Math.abs((await picture(page)).enemyLeft - x - 32 * .512)).toBeLessThanOrEqual(32 / 120 + 1);
+    await page.keyboard.down('Space');
+    await advance(page, 16);
+    expect((await picture(page)).bulletCount).toBe(1);
+    await page.keyboard.up('Space');
+  });
+}
+
 async function assertFrozenAndRestart(page, outcome, method) {
   await expect(page.locator('#status')).toContainText(outcome);
   const finalScore = await score(page);
@@ -370,15 +484,7 @@ for (const method of ['key', 'button']) {
     test.setTimeout(90000);
     await page.keyboard.press('Enter');
     await advance(page, 32);
-    await page.keyboard.down('Space');
-    for (let i = 0; i < 30 && await score(page) < 240; i += 1) {
-      const key = i % 2 === 0 ? 'ArrowLeft' : 'ArrowRight';
-      await page.keyboard.down(key);
-      await advance(page, 1000);
-      await page.keyboard.up(key);
-    }
-    await page.keyboard.up('Space');
-    expect(await score(page)).toBe(240);
+    await clearWave(page);
     await expect(page.getByRole('heading', { name: '궤도를 지켜냈습니다' })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('real-victory.png') });
     await assertFrozenAndRestart(page, '승리', method);
@@ -443,4 +549,28 @@ test('REQ-08 missing Canvas context exposes a Korean error instead of silently r
   expect(errors).toHaveLength(1);
   expect(errors[0]).toContain('Canvas 2D를 사용할 수 없습니다.');
   expect(await page.evaluate(() => '__ORBIT_TEST__' in window)).toBe(false);
+});
+
+test('CHG-02 unsupported DOM selection reports an error and stops rather than falling back', async ({ page }) => {
+  const errors = [];
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
+  await page.goto('/');
+  await page.keyboard.press('Enter');
+  await advance(page, 32);
+  await page.locator('#difficulty').evaluate((select) => {
+    select.add(new Option('지원하지 않는 값', 'invalid'));
+    select.value = 'invalid';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.getByRole('alert')).toContainText('게임을 실행할 수 없습니다: Unsupported difficulty');
+  await expect(page.locator('#status')).toHaveText('실행 오류');
+  await expect(page.locator('#difficulty')).toBeDisabled();
+  const frozen = await picture(page);
+  await page.keyboard.press('p');
+  await advance(page, 1000);
+  expect(await picture(page)).toEqual(frozen);
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toContain('Unsupported difficulty');
 });

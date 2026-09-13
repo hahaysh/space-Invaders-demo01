@@ -86,12 +86,12 @@ AGENTS의 예정 명령은 실제 스크립트와 실행 결과가 확인되면 
 
 ## 8. CHG-02 작업 계획 (08-01 채택)
 
-기준은 CHG-01 완료와 기록 재배포가 확인된 24600403이다. 다음 작업은 아직 미실행이며 08의 결과만 실제 원격 demo에 게시한다. app 로컬 브랜치는 그대로 유지한다.
+기준은 CHG-01 완료와 기록 재배포가 확인된 24600403이다. 08-01 설계는 bdec601로 실제 원격 demo에 게시했으며 아래는 08-02 로컬 검증까지의 상태다. app 로컬 브랜치는 그대로 유지한다.
 
 | 작업 | 기준·허용 파일 | 의존성·검증 | 현재 상태 |
 |---|---|---|---|
-| D1 공통 설정·모델 | AC1/2/3/4/6/7/9/10, src/game.js·tests/game.test.js | 설정/기본값·명시적 오류·선택/게임 구분·세 속도·양 경계·P, npm test 후 diff 검토 | 미실행 |
-| D2 선택 UI | AC4/5/8/9, index.html·src/styles.css·src/main.js·e2e/game.spec.js | D1 후 네이티브 select·표시·잠금·조작된 이벤트·새로고침·오류, Node/E2E/build | 미실행 |
-| D3 회귀·게시 확인 | AC1~10, 필요한 계획/결과/요청 문서 | D1/D2 후 기존 REQ01~08·CHG-01, 별도 preview, demo 게시·안전한 main FF 통합·실제 공개 확인 | 미실행 |
+| D1 공통 설정·모델 | AC1/2/3/4/6/7/9/10, src/game.js·tests/game.test.js | 설정/기본값·명시적 오류·선택/게임 구분·세 속도·양 경계·P, npm test 후 diff 검토 | 완료, A Node29/29와 실제 diff 검토 |
+| D2 선택 UI | AC4/5/8/9, index.html·src/styles.css·src/main.js·e2e/game.spec.js | D1 후 네이티브 select·표시·잠금·조작된 이벤트·새로고침·오류, Node/E2E/build | 완료, 전체 Node29/E2E24/build, R8 |
+| D3 회귀·게시 확인 | AC1~10, 필요한 계획/결과/요청 문서 | D1/D2 후 기존 REQ01~08·CHG-01, 별도 preview, demo 게시·안전한 main FF 통합·실제 공개 확인 | 로컬 회귀·preview 완료, 원격 통합·공개 확인 예정 |
 
 새 의존성·워크플로·목숨 기능은 추가하지 않는다. main 통합 전에는 난이도가 공개 배포되었다고 기록하지 않으며 환경의 main 제한을 완화하지 않는다.

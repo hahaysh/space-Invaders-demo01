@@ -8,6 +8,19 @@ export const RULES = Object.freeze({
   enemySpeed: 64, enemyDrop: 24, pointsPerEnemy: 10,
 });
 
+export const DIFFICULTIES = Object.freeze({
+  easy: Object.freeze({ label: '쉬움', enemySpeed: 32 }),
+  normal: Object.freeze({ label: '보통', enemySpeed: RULES.enemySpeed }),
+  hard: Object.freeze({ label: '어려움', enemySpeed: 96 }),
+});
+
+function difficultyConfig(value) {
+  if (typeof value !== 'string' || !Object.hasOwn(DIFFICULTIES, value)) {
+    throw new TypeError('Unsupported difficulty');
+  }
+  return DIFFICULTIES[value];
+}
+
 export const idleInput = () => ({ left: false, right: false, fire: false });
 
 export function createClock(tick) {
@@ -43,9 +56,12 @@ export function createEnemies() {
   }));
 }
 
-export function createState() {
+export function createState(difficulty = 'normal') {
+  difficultyConfig(difficulty);
   return {
     mode: 'title',
+    selectedDifficulty: difficulty,
+    difficulty,
     player: { x: RULES.playerX, y: RULES.playerY, width: RULES.playerWidth, height: RULES.playerHeight },
     bullets: [],
     enemies: createEnemies(),
@@ -61,6 +77,8 @@ function finite(value, name) {
 
 export function validateState(state) {
   if (!state || !['title', 'playing', 'paused', 'won', 'lost'].includes(state.mode)) throw new TypeError('Invalid game mode');
+  difficultyConfig(state.selectedDifficulty);
+  difficultyConfig(state.difficulty);
   if (!Array.isArray(state.bullets)) throw new TypeError('bullets must be an array');
   if (!Array.isArray(state.enemies) || state.enemies.length > 24) throw new TypeError('Invalid enemies');
   if (![1, -1].includes(state.enemyDirection)) throw new TypeError('Invalid enemy direction');
@@ -92,14 +110,21 @@ export function validateState(state) {
   return state;
 }
 
+export function selectDifficulty(state, value) {
+  validateState(state);
+  difficultyConfig(value);
+  if (!['title', 'won', 'lost'].includes(state.mode)) return state;
+  return { ...state, selectedDifficulty: value };
+}
+
 export function transition(state, action) {
   validateState(state);
   if (!['start', 'restart', 'togglePause'].includes(action)) throw new TypeError('Unknown game action');
   if (action === 'togglePause' && ['playing', 'paused'].includes(state.mode)) {
     return { ...state, mode: state.mode === 'playing' ? 'paused' : 'playing' };
   }
-  if (action === 'start' && state.mode === 'title') return { ...createState(), mode: 'playing' };
-  if (action === 'restart' && ['won', 'lost'].includes(state.mode)) return { ...createState(), mode: 'playing' };
+  if (action === 'start' && state.mode === 'title') return { ...createState(state.selectedDifficulty), mode: 'playing' };
+  if (action === 'restart' && ['won', 'lost'].includes(state.mode)) return { ...createState(state.selectedDifficulty), mode: 'playing' };
   return state;
 }
 
@@ -108,13 +133,13 @@ export function overlaps(a, b) {
     a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-function moveFormation(enemies, direction, dt) {
+function moveFormation(enemies, direction, dt, speed) {
   if (enemies.length === 0 || dt === 0) return { enemies, enemyDirection: direction };
   const edge = direction === 1
     ? Math.max(...enemies.map((enemy) => enemy.x + enemy.width))
     : Math.min(...enemies.map((enemy) => enemy.x));
   const gap = direction === 1 ? RULES.width - edge : edge;
-  const travel = RULES.enemySpeed * dt;
+  const travel = speed * dt;
   const reached = travel + 1e-10 >= gap;
   const dx = direction * Math.min(travel, gap);
   return {
@@ -136,7 +161,7 @@ export function update(state, input, dt) {
     ...state,
     player: { ...state.player },
     bullets: state.bullets.map((bullet) => ({ ...bullet })),
-    ...moveFormation(state.enemies, state.enemyDirection, dt),
+    ...moveFormation(state.enemies, state.enemyDirection, dt, difficultyConfig(state.difficulty).enemySpeed),
     cooldown: Math.max(0, state.cooldown - dt),
   };
   const direction = Number(input.right) - Number(input.left);

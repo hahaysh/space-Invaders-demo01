@@ -16,6 +16,15 @@
         </div>
         <div class="scoreboard"><span>점수</span><output id="score" aria-label="점수">0</output></div>
       </header>
+      <div class="settings" role="group" aria-label="게임 설정">
+        <label for="difficulty">다음 게임 난이도</label>
+        <select id="difficulty" aria-describedby="difficulty-current">
+          <option value="easy">쉬움</option>
+          <option value="normal" selected>보통</option>
+          <option value="hard">어려움</option>
+        </select>
+        <p id="difficulty-current">선택 난이도: 보통</p>
+      </div>
       <section class="arena" aria-label="궤도 방어 게임">
         <canvas id="game" width="800" height="600" aria-label="800×600 우주 방어 게임 화면" aria-describedby="controls status">
           이 게임은 Canvas를 지원하는 데스크톱 브라우저에서 실행할 수 있습니다.

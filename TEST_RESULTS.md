@@ -221,3 +221,26 @@ CHG-01의 공개 확인과 TC-22는 pass다. 정확한 내부 쿨다운·단일 
 | AC6/7 · TC-D06 | unverified | 미실행: 확장 후 기존 전체 회귀·실제 공개판 |
 
 생성·수정 범위는 요청·PRD·TRD·구현 계획·테스트 계획·이 결과의 6문서뿐이다. 제품·테스트 코드·의존성·워크플로는 변경하지 않았다. 정상적인 선택 확장 설계이며 원본 안내 결함이나 초기화 사유가 아니다.
+
+## 13. R8 — 08-02 난이도 로컬 구현·회귀
+
+기준은 demo의 bdec6015d4f71af45db9fe1adcd1e80a3b38e68c다. 실제 원문 08-02 전체·채택 문서·코드를 읽고 모델 A만 구현하여 npm test 29/29 및 두 파일 diff를 먼저 확인했다. 이후 UI B를 진행했으며 기존 알고리즘에 같은 난이도 속도를 전달하고 선택/게임값·네이티브 입력·모델 잠금·명시적 오류만 추가했다. 의존성·워크플로·목숨은 변경하지 않았다.
+
+첫 관련 `npm run test:e2e -- --grep 'CHG-02|native button'`는 7 pass/1 fail이었다. 어려움 패배 검사에서 90000ms timeout이 났고 실행 보고서는 3.0h를 표시했다. 보존한 trace에는 40000ms clockRunFor 시작만 있고 완료 이벤트가 없었으며 스냅샷은 진행 중이었다. 장시간 실행 중단의 OS/호스트 원인은 확정하지 않는다. 순수 모델의 자연 패배는 easy108.5/normal54.25/hard36.1667초로 확인되어 40초 입력의 기대값은 유지했다.
+
+코드·40초 입력·90초 제한을 바꾸지 않고 같은 lost 선택자로 재현 확인한 결과 1/1 pass(13.8초)였다. 이어 npm test 29/29, 전체 npm run test:e2e 24/24(약3.3분), npm run build가 모두 종료0이었다. 첫 실패의 trace·스냅샷은 저장소 밖에 보존했고 단순 성공 결과만 남기지 않았다. 현재 열린 기능 실패는 없지만 최초 장시간 중단의 원인은 미확인이다.
+
+| 기준·TC | 기대값 | 판정 | 실제 근거 |
+|---|---|---|---|
+| AC1/9 · TC-D01 | 세 속도·normal 기본값·잘못된 값 명시 | pass | Node의 누락/undefined·null/타입/상속 이름 검사, UI의 Unsupported difficulty 오류·정지 검증 |
+| AC2/3/4 · TC-D02 | 선택/게임값 구분, 시작·재시작만 적용 | pass | Node의 세 선택 상태·playing/paused 제한, 실제 hard 승리/패배 후 easy 선택·재시작 |
+| AC6/10 · TC-D03 | 0.1초에 3.2/6.4/9.6px, 한 번 24하강 | pass | 모델 오차 <1e-9, 모든 속도의 좌우 벽 직전/도달/초과. E2E512ms 실제 Canvas 이동은 speed/120+1px 이내 |
+| AC3/4/5/8/9 · TC-D04 | select·표시·잠금·새로고침·오류 | pass | 실제 키보드 선택은 title 유지, 게임 단축키 충돌 없음. DOM disabled 해제/change도 모델 우회 불가. 새로고침 normal |
+| AC7 · TC-D05 | 세 난이도의 P·시간·입력 보존 | pass | 각 속도에서 60초 전체 모델/Canvas 동결·재개·발사 대기·키 누출 검사 |
+| AC6/7 · TC-D06 로컬 | 기존 REQ01~08·CHG-01 유지 | pass | 기존 검사 삭제 없음, Node29/E2E24/build·10회 재시작/정지·하위 경로 |
+| 공개 TC-D06/TC-22 | 성공 배포·실제 공개 난이도 | unverified | 아직 demo 구현 게시·main 통합·공개 배포 확인 전 |
+| 사람/OS 관찰 | 직접 플레이·실제 포커스 | unverified | 자동 Chromium·합성 이벤트와 구분 |
+
+별도 `npm run preview -- --host 127.0.0.1 --port 4173 --strictPort --base /space-Invaders-demo01/`에서 http://127.0.0.1:4173/space-Invaders-demo01/ HTTP200을 확인했다. 2026-09-13 23:45:17 UTC에 자동 Chromium의 세 실제 속도·기본값·네이티브 select·P/쿨다운·hard 패배 후 easy 재시작·새로고침과 기존 승패 네 재시작 경로를 모두 확인했다. HTML/JS/CSS는 dist와 동일했고 외부 요청·오류는 없었다. preview는 이 세션 프로세스만 종료했다.
+
+변경 제품/테스트 파일은 src/game.js, src/main.js, src/styles.css, index.html, tests/game.test.js, e2e/game.spec.js다. 실행 후 요청·계획·이 결과만 진행 상태에 맞춰 기록했다. 새로운 select 때문에 기존 임시 네이티브 select 검사의 대상을 접근성 이름으로 구체화했고, 기존 정상 승리 조작을 같은 테스트 파일의 helper로 재사용했다. 이는 기준 삭제나 상태 주입이 아니다.
