@@ -12,7 +12,7 @@
 - AGENTS.md는 작업 지침이며 Custom agent 정의가 아니다. ideation.md는 아이디어·선택 이유, PRD.md는 요구사항·수용 기준, TRD.md는 구현 설계의 기준이다. IMPLEMENTATION_PLAN.md는 작업 순서·의존성, TEST_PLAN.md는 검증 절차·기대 결과, TEST_RESULTS.md는 실제 수행·증거를 맡는다. 제품 명세·수치를 이 파일에 복제하지 않는다.
 - 최소 AGENTS 작성 → ideation → PRD → TRD → 문서 점검·설계 승인과 AGENTS 보완 → 구현 계획·구현 → 테스트 계획·결과 정리 순서를 따른다. 테스트 코드는 구현과 함께 작성하며 05단계 문서 정리까지 미루지 않는다.
 - 최초 요구사항 ID는 REQ-01~REQ-08 형식을 사용하고 설계·구현 작업·테스트에서 참조한다. 실제 요구 내용과 번호 대응은 PRD에서 승인한다. 테스트 실행 결과는 테스트 ID로 연결한다.
-- 실행·빌드·테스트 명령은 현재 미확정이다. TRD 이후 계획하고 구현 설정·스크립트가 생긴 뒤 실제 실행으로 확인하여 이 지침을 보완한다. 예정 명령을 실행 가능한 확정 명령으로 기록하지 않는다.
+- 실행·빌드·테스트 명령은 아래 04-02 M1 실제 검증 목록을 사용한다. 후속 단계의 예정 명령을 실행 완료로 기록하지 않는다.
 
 ## 검증과 기록
 - 테스트 계획과 실제 결과를 분리한다. 실제 수행한 명령·절차, 대상 커밋·환경, 관측 결과·증거를 기록한다.
@@ -22,8 +22,17 @@
 ## 확정 설계와 구현 검증
 - 03-02에서 PRD·TRD를 위임에 따라 검토·채택했다. 제품 규칙은 PRD, 파일 책임·입력·시간·렌더링 설계는 TRD를 기준으로 한다. M1 시작·이동·발사, M2 적·충돌·점수, M3 종료·재시작 순서를 지키며 후속 기능을 선행 구현하지 않는다.
 - 모델은 DOM·실시간 시계와 분리하고 명시적 입력·시간으로 검증한다. 경계·금지 동작과 오류 입력을 포함하며 PRD 수치를 느슨하게 바꾸어 테스트 실패를 숨기지 않는다. 수정 후 해당 테스트와 기존 회귀를 다시 실행한다.
-- 예정 검증은 npm test(Node의 tests/*.test.js만 수집), npm run test:e2e(실제 Playwright 브라우저), npm run build다. 현재 스크립트는 아직 없으므로 04단계 설정 생성 후 실제 명령·포트를 확인해 갱신한다.
+- 04-02 M1에서 npm test(Node의 tests/*.test.js만 수집) 8개, npm run test:e2e(실제 Chromium) 6개, npm run build를 실행해 모두 pass였다. M1은 REQ-01/02/03과 로컬 REQ-08만 포함하며 M2/M3의 적·종료는 이 결과에 포함하지 않는다.
 - 테스트용 상태 제어는 개발 환경으로 한정하고 배포 빌드에 남지 않는지 확인한다. 실제 키·버튼 조작 검증과 상태 주입 검증을 구분한다. 생성물·node_modules·테스트 임시 결과를 커밋하지 않는다.
+
+## 실제 로컬 명령·환경 (04-02 M1)
+- Windows, Node v24.14.1, npm 10.8.3에서 package.json 생성 후 npm install을 실행했다. Vite 7.3.6, @playwright/test 1.58.2, 전이 esbuild 0.28.2를 package-lock.json으로 고정했다. 최초 의존성 감사 경고는 Vite 패치와 npm audit fix로 해소했고 최종 0 vulnerabilities였다.
+- npm run dev: 127.0.0.1:5175 strictPort. 실제 실행 후 HTTP 200·제목 응답을 확인하고 해당 서버를 종료했다.
+- npm run test:e2e: Playwright 관리 127.0.0.1:4175 strictPort. reuseExistingServer:false이며 테스트 종료 시 해당 서버를 정리한다. Chromium 실행 파일 부재 실패를 확인한 다음 npx playwright install chromium을 실행했고 Chromium 145.0.7632.6으로 재검증했다.
+- npm run build: 상대 base './'로 dist만 생성한다. npm test의 tests/build.test.js도 메모리 빌드 결과에서 상대 에셋 경로, 개발 훅·문서·외부 URL 부재를 검사한다.
+- npm run preview: 127.0.0.1:4176 strictPort. 실제 실행 후 HTTP 200·상대 에셋 응답을 확인하고 해당 서버를 종료했다.
+- 브라우저 시간은 page.clock으로 제어한다. 개발 전용 window.__ORBIT_TEST__의 snapshot/input/timing은 관찰용, inject는 명시적으로 주입한 모델 상태 재현용이다. import.meta.env.DEV 분기 전체가 프로덕션 빌드에서 제거된다.
+- blur/visibility 검사는 브라우저 이벤트·document.hidden 제어 검증이다. 실제 사람 플레이, OS 수준 포커스, 공개 게임 URL·Pages 배포는 unverified이며 자동 시험을 사람 확인으로 기록하지 않는다.
 
 ## 변경 보존과 공개 안전
 - 기존 사용자 변경을 삭제·되돌리거나 관련 없는 변경을 커밋에 섞지 않는다. 예상 밖 변경이나 출처가 불명확한 변경이 있으면 보고하고 확인한다.

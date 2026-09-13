@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080d1c" />
+    <title>Orbit Defender · 궤도 방어</title>
+  </head>
+  <body>
+    <main class="mission">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">ORBITAL DEFENSE / 01</p>
+          <h1>Orbit Defender <span>궤도 방어</span></h1>
+        </div>
+        <div class="scoreboard"><span>점수</span><output id="score" aria-label="점수">0</output></div>
+      </header>
+      <section class="arena" aria-label="궤도 방어 게임">
+        <canvas id="game" width="800" height="600" aria-label="800×600 우주 방어 게임 화면" aria-describedby="controls status">
+          이 게임은 Canvas를 지원하는 데스크톱 브라우저에서 실행할 수 있습니다.
+        </canvas>
+        <div id="overlay" class="overlay">
+          <div class="briefing">
+            <p class="eyebrow">MISSION BRIEFING</p>
+            <h2 id="message">궤도를 지켜 주세요</h2>
+            <p id="detail">좌우로 이동하며 우주를 향해 발사하세요.</p>
+            <button id="start" type="button">방어 시작 <span>↵ ENTER</span></button>
+          </div>
+        </div>
+      </section>
+      <footer class="dashboard">
+        <p id="status" role="status" aria-live="polite">출격 대기</p>
+        <p id="controls"><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd> 이동 <span>·</span> <kbd>SPACE</kbd> 발사</p>
+      </footer>
+      <p class="footnote">키보드로 조작하는 작은 우주 · 화면을 벗어나면 누른 키가 해제됩니다.</p>
+      <p id="error" role="alert" hidden></p>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
