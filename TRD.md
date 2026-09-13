@@ -70,7 +70,9 @@ Canvas 논리 크기는 800×600으로 유지하며 CSS 표시는 화면 폭에 
 
 Vite base는 상대 경로인 './'로 설정한다. Playwright의 Chromium 프로젝트는 testDir e2e와 url/baseURL http://127.0.0.1:5173을 사용한다. webServer 명령은 npm run dev -- --host 127.0.0.1 --port 5173 --strictPort이며 reuseExistingServer는 false다. 기존 프로세스를 임의 종료하지 않고 점유 시 보고한다. dist 하위 경로 검사는 별도의 4173 preview로 실행하며 두 포트를 혼동하지 않는다.
 
-06단계에서 GitHub Actions의 테스트·빌드 후 dist만 Pages 아티팩트로 게시한다. 기본 contents:read, 배포 작업만 pages:write/id-token:write를 사용하며 github-pages 환경은 main만 허용한다. PR은 테스트·빌드만, main 및 main의 수동 실행만 배포한다. 현재 워크플로·Pages 설정은 아직 없다.
+06단계에서 GitHub Actions의 테스트·빌드 후 dist만 Pages 아티팩트로 게시한다. 기본 contents:read, 배포 작업만 pages:write/id-token:write를 사용하며 github-pages 환경은 main만 허용한다. PR은 테스트·빌드만, main 및 main의 수동 실행만 업로드·배포한다.
+
+06-01에서 인증된 gh REST API로 Pages 게시 소스 workflow와 github-pages 환경의 main 브랜치 규칙 하나를 실제 설정·재조회했다. 사람의 GitHub 웹 조작과 구분한다. 06-02의 .github/workflows/pages.yml은 Ubuntu/Node24, npm ci → Node 검사 → Chromium 설치 → E2E → build 순서와 build 성공 의존 배포, deploy에만 pages-deployment 동시성 제어를 구현한다. 공식 Actions의 검증된 버전 SHA를 고정한다. 사용자 예외에 따른 main 게시가 배포를 유발하며 실제 Actions·공개 URL 결과는 06-03에서 별도 검증한다.
 
 ## 7. 단계와 후속 변경
 
