@@ -244,3 +244,28 @@ CHG-01의 공개 확인과 TC-22는 pass다. 정확한 내부 쿨다운·단일 
 별도 `npm run preview -- --host 127.0.0.1 --port 4173 --strictPort --base /space-Invaders-demo01/`에서 http://127.0.0.1:4173/space-Invaders-demo01/ HTTP200을 확인했다. 2026-09-13 23:45:17 UTC에 자동 Chromium의 세 실제 속도·기본값·네이티브 select·P/쿨다운·hard 패배 후 easy 재시작·새로고침과 기존 승패 네 재시작 경로를 모두 확인했다. HTML/JS/CSS는 dist와 동일했고 외부 요청·오류는 없었다. preview는 이 세션 프로세스만 종료했다.
 
 변경 제품/테스트 파일은 src/game.js, src/main.js, src/styles.css, index.html, tests/game.test.js, e2e/game.spec.js다. 실행 후 요청·계획·이 결과만 진행 상태에 맞춰 기록했다. 새로운 select 때문에 기존 임시 네이티브 select 검사의 대상을 접근성 이름으로 구체화했고, 기존 정상 승리 조작을 같은 테스트 파일의 helper로 재사용했다. 이는 기준 삭제나 상태 주입이 아니다.
+
+## 14. R9 — 08-02 난이도 원격 검사·통합·공개 확인
+
+08-01 설계 bdec6015d4f71af45db9fe1adcd1e80a3b38e68c와 08-02 구현 8b28244b7c98880cdcf1a751dcaa0196561f568b를 각각 실제 원격 demo에 게시했다. app 로컬 작업 브랜치는 유지했으며 원문 PR 생성·병합 대신 사용자 위임 정책의 일반 fast-forward 게시를 사용했다. 이는 사람이 PR UI를 조작한 실습과 다르다.
+
+- 검사 전용 실행: https://github.com/hahaysh/space-Invaders-demo01/actions/runs/34790725026 — workflow_dispatch, demo, build success. dist 업로드와 deploy는 실제 skipped였다.
+- 통합 기준: 당시 main 24600403c4a6f46be800dab2757cef47ec121960이 구현 SHA의 조상임을 확인하고 git push origin HEAD:main을 실행했다. main=demo=HEAD 및 변경 12파일의 GitHub main 바이트 일치·clean을 확인했다. 강제 조작·브랜치 삭제·보호 우회는 없었다.
+- 실제 배포 실행: https://github.com/hahaysh/space-Invaders-demo01/actions/runs/34790910058 — push main, SHA 8b28244b7c98880cdcf1a751dcaa0196561f568b, build/deploy success. CI Node24.20.0/npm11.19.0에서 npm ci·npm test·Chromium 설치·E2E24/24·build가 성공했다.
+- 배포 ID 6427967703의 success 상태가 제공한 실제 URL: https://hahaysh.github.io/space-Invaders-demo01/
+- Pages Source는 workflow, github-pages 환경의 허용 branch 규칙은 main 하나였다. 이번에 설정·워크플로·의존성을 변경하지 않았다. main 통합이 실제 난이도 재배포를 유발했다.
+
+성공한 실행의 github-pages 아티팩트에는 index.html과 assets의 JS/CSS만 있었다. 2026-09-13 23:58:20 UTC에 공개 Chromium145.0.7632.6 검증을 완료했으며 공개 HTML/JS/CSS 바이트가 그 아티팩트와 정확히 일치했다.
+
+| 기준·범위 | 기대 결과 | 판정 | 실제 공개/CI 근거 |
+|---|---|---|---|
+| CHG-02-AC1~6/8~10 · TC-D01~04 | 기본값·선택/현재값·실제 속도·잠금·경계·오류 유지 | pass | CI의 모델·E2E 검사, 공개 세 속도의 같은 시간 Canvas 이동, 네이티브 선택, hard 종료 후 easy 재시작, 새로고침 normal |
+| CHG-02-AC7 · TC-D05, CHG-01-AC1~8 | 난이도별 P·쿨다운·입력 및 기존 정지 유지 | pass | 공개 세 난이도의 P/발사 대기, 60초 동결·10회 전환·합성 blur 확인 |
+| REQ-01~08 · TC-D06/TC-22 | 기존 조작·승패·재시작·하위 경로 전달 유지 | pass | CI 전체 회귀와 공개 키/버튼·경계·양방향 입력·유지 발사·점수·실제 240점 승리/자연 패배, 각 종료의 R/버튼 재시작 |
+| 배포 제한·전달 | demo 검사만, main만 검증 후 정적 파일 배포 | pass | demo 실행의 업로드/deploy skipped, main 성공 배포와 실제 URL·아티팩트 동일 |
+| 공개 오류 | JS/CSS 404·Console/page 오류·외부 요청 없음 | pass | 요청은 같은 공개 경로의 HTML/JS/CSS 세 URL뿐, errors=[] |
+| 사람/OS·다른 브라우저 | 관측 주체와 미확인 범위 분리 | unverified | 인간 직접 플레이·OS 실제 포커스·Firefox/WebKit·인간 app PR UI 경로는 수행하지 않음 |
+
+R8의 첫 장시간 중단과 원인 미확인 기록을 유지한다. 동일 조건 재확인과 이후 로컬·CI·공개 성공을 그 첫 실행의 성공으로 소급하지 않는다. 필수 난이도 동작에 열린 실패는 없으며 목숨 기능은 아직 구현하지 않았다.
+
+이 결과를 반영하는 문서 후속 커밋은 위 배포 코드 SHA와 다르다. 기록도 먼저 demo에 게시한 뒤 main으로 일반 fast-forward 통합하며 같은 워크플로의 후속 배포를 확인한다. 후속 기록 때문에 또 결과 커밋을 만드는 순환은 하지 않는다. 로컬 서버는 종료되어 있으며 공개 검증 브라우저도 종료했다.
