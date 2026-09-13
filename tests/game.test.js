@@ -71,7 +71,7 @@ test('Invalid time, input, state and actions fail explicitly', () => {
     assert.throws(() => update(playing(), input, 0));
   }
   assert.throws(() => transition(createState(), 'pause'), /Unknown/);
-  assert.throws(() => update({ ...playing(), mode: 'paused' }, idleInput(), 0), /mode/);
+  assert.throws(() => update({ ...playing(), mode: 'unknown' }, idleInput(), 0), /mode/);
   assert.throws(() => update({ ...playing(), cooldown: -1 }, idleInput(), 0), /cooldown/);
   assert.throws(() => update({ ...playing(), bullets: [{}] }, idleInput(), 0), /finite/);
   for (const x of [-.001, 760.001, Infinity]) {
@@ -96,6 +96,61 @@ test('Clock fixed 1/120, cap 0.1, reset and invalid timestamps', () => {
   assert.throws(() => clock.advance(1), /backwards/);
   assert.throws(() => clock.advance(NaN), /finite/);
   assert.throws(() => createClock(null), /function/);
+});
+
+test('CHG-01 AC1/8 pause toggles only playing and paused; other actions remain gated', () => {
+  const game = playing();
+  const before = structuredClone(game);
+  const paused = transition(game, 'togglePause');
+  assert.equal(paused.mode, 'paused');
+  assert.deepEqual({ ...paused, mode: 'playing' }, before);
+  assert.deepEqual(game, before);
+  assert.deepEqual(transition(paused, 'togglePause'), before);
+  for (const action of ['start', 'restart']) assert.equal(transition(paused, action), paused);
+  for (const mode of ['title', 'won', 'lost']) {
+    const inactive = { ...createState(), mode };
+    assert.equal(transition(inactive, 'togglePause'), inactive);
+  }
+});
+
+test('CHG-01 AC3 pause freezes every value for 60 seconds and preserves exact cooldown boundary', () => {
+  const game = playing();
+  game.player.x = 0;
+  game.enemies.shift();
+  game.score = 10;
+  const fired = update(game, { ...idleInput(), fire: true }, 0);
+  const paused = transition(fired, 'togglePause');
+  const snapshot = structuredClone(paused);
+  for (let i = 0; i < 600; i += 1) {
+    assert.deepEqual(update(paused, { left: true, right: false, fire: true }, .1), snapshot);
+  }
+  assert.deepEqual(paused, snapshot);
+  assert.equal(paused.score, 10);
+  assert.equal(paused.cooldown, .2);
+  const resumed = transition(paused, 'togglePause');
+  const before = run(resumed, { fire: true }, 23);
+  assert.equal(before.bullets.length, 1);
+  assert.equal(run(before, { fire: true }, 1).bullets.length, 2);
+});
+
+test('CHG-01 AC6/7 repeated resume resets the time baseline without accumulating paused time', () => {
+  let game = playing();
+  const clock = createClock((dt) => { game = update(game, { ...idleInput(), right: true }, dt); });
+  clock.advance(0);
+  clock.advance(50);
+  for (let i = 1; i <= 10; i += 1) {
+    game = transition(game, 'togglePause');
+    const snapshot = structuredClone(game);
+    const steps = clock.inspect().steps;
+    clock.reset();
+    game = transition(game, 'togglePause');
+    clock.advance(i * 60000);
+    assert.deepEqual(game, { ...snapshot, mode: 'playing' });
+    assert.equal(clock.inspect().steps, steps);
+    clock.advance(i * 60000 + 50);
+    assert.equal(clock.inspect().steps, steps + 6);
+    assert.ok(Math.abs(game.player.x - snapshot.player.x - 16) < 1e-9);
+  }
 });
 
 test('REQ-04 exactly 3×8 independent enemies at specified positions and speed', () => {

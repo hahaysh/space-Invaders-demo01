@@ -14,7 +14,7 @@ const error = document.querySelector('#error');
 let state = createState();
 let failed = false;
 const held = new Set();
-const controls = new Set(['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'Space', 'Enter', 'KeyR']);
+const controls = new Set(['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'Space', 'Enter', 'KeyR', 'KeyP']);
 const nativeControl = (target) => target instanceof Element && Boolean(target.closest('button, input, select, textarea, a[href], [contenteditable]:not([contenteditable="false"])'));
 const readInput = () => ({
   left: held.has('ArrowLeft') || held.has('KeyA'),
@@ -47,6 +47,7 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
   if (event.code === 'Enter' && !event.repeat) act('start');
   else if (event.code === 'KeyR' && !event.repeat) act('restart');
+  else if (event.code === 'KeyP' && !event.repeat) act('togglePause');
   else if (state.mode === 'playing' && !event.repeat && !['Enter', 'KeyR'].includes(event.code)) held.add(event.code);
 });
 window.addEventListener('keyup', (event) => {
@@ -114,7 +115,7 @@ function render() {
   ctx.fillStyle = '#ffe5a1';
   for (const bullet of state.bullets) ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
   score.value = String(state.score);
-  const labels = { title: '출격 대기', playing: '방어 진행 중', won: '승리 · 궤도 방어 성공', lost: '패배 · 방어선 도달' };
+  const labels = { title: '출격 대기', playing: '방어 진행 중', paused: '일시정지', won: '승리 · 궤도 방어 성공', lost: '패배 · 방어선 도달' };
   const label = labels[state.mode];
   if (status.textContent !== label) status.textContent = label;
   const ended = ['won', 'lost'].includes(state.mode);
@@ -122,7 +123,11 @@ function render() {
   overlay.dataset.outcome = state.mode;
   start.hidden = state.mode !== 'title';
   restart.hidden = !ended;
-  if (ended) {
+  if (state.mode === 'paused') {
+    if (message.textContent !== '일시정지') message.textContent = '일시정지';
+    const hint = '게임 시간이 멈췄습니다. P를 눌러 같은 상태에서 재개하세요.';
+    if (detail.textContent !== hint) detail.textContent = hint;
+  } else if (ended) {
     const title = state.mode === 'won' ? '궤도를 지켜냈습니다' : '방어선이 돌파되었습니다';
     const summary = `최종 점수 ${state.score}점 · R 또는 다시 도전 버튼으로 새 임무를 시작하세요.`;
     if (message.textContent !== title) message.textContent = title;

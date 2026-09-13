@@ -24,6 +24,23 @@ async function picture(page) {
   });
 }
 
+async function listenerCounts(cdp) {
+  const counts = [];
+  const targets = [
+    ['window', ['keydown', 'keyup', 'blur']],
+    ['document', ['focusin', 'visibilitychange']],
+    ['document.querySelector("#start")', ['click']],
+    ['document.querySelector("#restart")', ['click']],
+  ];
+  for (const [expression, eventTypes] of targets) {
+    const { result } = await cdp.send('Runtime.evaluate', { expression });
+    const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+    counts.push(listeners.filter((listener) => eventTypes.includes(listener.type)).map((listener) => listener.type).sort());
+    await cdp.send('Runtime.releaseObject', { objectId: result.objectId });
+  }
+  return counts;
+}
+
 test.describe('실제 게임 조작', () => {
 test.beforeEach(async ({ page }) => {
   page.testErrors = [];
@@ -43,6 +60,7 @@ test('REQ-01/08 semantic title, inactive keys, no state globals and responsive C
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Orbit Defender');
   const before = await picture(page);
   await page.keyboard.press('r');
+  await page.keyboard.press('p');
   await page.keyboard.down('ArrowLeft');
   await page.keyboard.down('Space');
   await advance(page, 500);
@@ -85,7 +103,6 @@ test('REQ-02 real direction/A/D keys, opposing input and rasterized screen bound
   const before = await picture(page);
   await page.keyboard.press('Enter');
   await page.keyboard.press('r');
-  await page.keyboard.press('p');
   expect(await picture(page)).toEqual(before);
   await expect(page.locator('#status')).toHaveText('방어 진행 중');
 });
@@ -131,6 +148,7 @@ test('REQ-02/03 browser blur / hidden events clear keys and avoid large resume j
       });
     }
     await advance(page, 1200);
+    await expect(page.locator('#status')).toHaveText('방어 진행 중');
     expect((await picture(page)).left).toBe(x);
     expect((await picture(page)).bulletCount).toBe(0);
     await page.keyboard.up('ArrowRight');
@@ -157,7 +175,9 @@ test('REQ-08 native button and selector keyboard events remain native', async ({
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Space');
   await page.keyboard.press('Enter');
+  await page.keyboard.press('p');
   await advance(page, 100);
+  await expect(page.locator('#status')).toHaveText('방어 진행 중');
   await expect(page.getByRole('combobox')).not.toHaveAttribute('data-prevented', 'true');
   expect((await picture(page)).left).toBe(x);
   expect((await picture(page)).bulletCount).toBe(0);
@@ -207,23 +227,7 @@ test('REQ-05 actual held Space hits and updates the Korean DOM score', async ({ 
 test('REQ-07 ten real restarts keep movement, firing and listener counts stable', async ({ page }) => {
   test.setTimeout(240000);
   const cdp = await page.context().newCDPSession(page);
-  const listenerCounts = async () => {
-    const counts = [];
-    const targets = [
-      ['window', ['keydown', 'keyup', 'blur']],
-      ['document', ['focusin', 'visibilitychange']],
-      ['document.querySelector("#start")', ['click']],
-      ['document.querySelector("#restart")', ['click']],
-    ];
-    for (const [expression, eventTypes] of targets) {
-      const { result } = await cdp.send('Runtime.evaluate', { expression });
-      const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
-      counts.push(listeners.filter((listener) => eventTypes.includes(listener.type)).map((listener) => listener.type).sort());
-      await cdp.send('Runtime.releaseObject', { objectId: result.objectId });
-    }
-    return counts;
-  };
-  const baseline = await listenerCounts();
+  const baseline = await listenerCounts(cdp);
   expect(baseline[0]).toEqual(['blur', 'keydown', 'keyup']);
   expect(baseline[1]).toEqual(['focusin', 'visibilitychange']);
   expect(baseline[2]).toEqual(['click']);
@@ -243,12 +247,82 @@ test('REQ-07 ten real restarts keep movement, firing and listener counts stable'
     await advance(page, 224);
     expect((await picture(page)).bulletCount).toBe(2);
     await page.keyboard.up('Space');
-    expect(await listenerCounts()).toEqual(baseline);
+    expect(await listenerCounts(cdp)).toEqual(baseline);
     if (round === 10) break;
     await advance(page, 55000);
     await expect(page.locator('#status')).toContainText('패배');
     if (round % 2 === 0) await page.keyboard.press('r');
     else await page.getByRole('button', { name: '다시 도전' }).click();
+  }
+  await cdp.detach();
+});
+
+test('CHG-01 AC1..6 held P, long pause, frozen scene and cooldown, cleared inputs and blur', async ({ page }, testInfo) => {
+  await page.keyboard.press('Enter');
+  await advance(page, 32);
+  await page.keyboard.down('ArrowRight');
+  await page.keyboard.down('Space');
+  await advance(page, 16);
+  await page.keyboard.down('p');
+  await expect(page.locator('#status')).toHaveText('일시정지');
+  await expect(page.getByRole('heading', { name: '일시정지', exact: true })).toBeVisible();
+  await expect(page.locator('#detail')).toContainText('P를 눌러');
+  await expect(page.getByRole('button')).toHaveCount(0);
+  const frozen = await picture(page);
+  const pausedScore = await score(page);
+  await page.keyboard.down('p');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('r');
+  await page.keyboard.down('a');
+  await page.clock.fastForward(60000);
+  await expect(page.locator('#status')).toHaveText('일시정지');
+  expect(await picture(page)).toEqual(frozen);
+  expect(await score(page)).toBe(pausedScore);
+  await page.screenshot({ path: testInfo.outputPath('paused.png') });
+  await page.keyboard.up('p');
+  await page.keyboard.down('p');
+  await page.keyboard.down('p');
+  await page.keyboard.up('p');
+  await advance(page, 64);
+  await expect(page.locator('#status')).toHaveText('방어 진행 중');
+  expect((await picture(page)).left).toBe(frozen.left);
+  expect((await picture(page)).bulletCount).toBe(1);
+  await page.keyboard.up('a');
+  await page.keyboard.up('ArrowRight');
+  await page.keyboard.up('Space');
+  await page.keyboard.down('Space');
+  await advance(page, 96);
+  expect((await picture(page)).bulletCount).toBe(1);
+  await advance(page, 64);
+  expect((await picture(page)).bulletCount).toBe(2);
+  await page.keyboard.up('Space');
+  await page.keyboard.press('p');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(page.locator('#status')).toHaveText('일시정지');
+});
+
+test('CHG-01 AC5/6/7 ten pause cycles preserve speed, clear held keys and keep one set of listeners', async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  const baseline = await listenerCounts(cdp);
+  await page.keyboard.press('Enter');
+  await advance(page, 32);
+  for (let cycle = 0; cycle < 10; cycle += 1) {
+    const key = cycle % 2 === 0 ? 'ArrowLeft' : 'ArrowRight';
+    const direction = cycle % 2 === 0 ? -1 : 1;
+    const x = (await picture(page)).left;
+    await page.keyboard.down(key);
+    await advance(page, 512);
+    expect(Math.abs((await picture(page)).left - x - direction * .512 * 320)).toBeLessThanOrEqual(320 / 120 + 1);
+    await page.keyboard.press('p');
+    const frozen = await picture(page);
+    await page.clock.fastForward(60000);
+    expect(await picture(page)).toEqual(frozen);
+    await page.keyboard.press('p');
+    await advance(page, 64);
+    expect((await picture(page)).left).toBe(frozen.left);
+    await page.keyboard.up(key);
+    expect(await listenerCounts(cdp)).toEqual(baseline);
+    await expect(page.locator('#status')).toHaveText('방어 진행 중');
   }
   await cdp.detach();
 });

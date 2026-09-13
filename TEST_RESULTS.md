@@ -128,3 +128,23 @@ TC-22의 현재 판정은 pass다. 사람이 직접 플레이한 결과·OS 포�
 | CHG-01-AC5 · TC-P05 | unverified | 미실행: blur/hidden에서 자동 pause 없음 |
 | CHG-01-AC7/AC8 · TC-P06 | unverified | 미실행: 10회 전환·단일 루프·기존 전체 회귀 |
 | CHG-01 공개 재배포 | unverified | 미실행: 07-05의 실제 Actions/공개 URL |
+
+## 9. R5 — 07-03 일시정지 A/B 구현 검증
+
+기준 c7934ab49556563a78f53fd87dbe94c06922727b에서 실제 07-03 원문 전체와 관련 문서·코드를 확인했다. A는 src/game.js/tests/game.test.js만 수정하고 Node25/25 및 diff를 검토한 뒤 종료했다. 이어 B에서 src/main.js/index.html/e2e/game.spec.js를 수정했다. 기존 스타일·입력 해제·시간 기준 초기화·단일 RAF를 재사용했으며 게임 수치·의존성·워크플로는 변경하지 않았다.
+
+| 실행 순서·명령 | 판정 | 실제 결과 |
+|---|---|---|
+| A: npm test | pass | Node25/25, 기존22개와 CHG-01 모델·시계3개. 실패·skip 없음 |
+| B: npm run test:e2e -- --grep 'CHG-01\|native button\|real direction\|semantic title\|blur /' | pass | 직접 영향 Chromium6/6, 새 P 검사2개 포함 |
+| A/B 통합: npm test | pass | Node25/25 |
+| A/B 통합: npm run test:e2e | pass | Chromium17/17, 약3.3분. 개발5173·하위 경로 preview4173 |
+| A/B 통합: npm run build | pass | dist의 HTML/JS/CSS만 생성, 상대 경로 유지 |
+
+순수 모델은 title/won/lost의 P 무시, paused의 start/restart 금지, 점수10·남은 적23·탄환·쿨다운을 포함한 전체 상태의 60초 동결을 확인했다. 유효한 dt 상한을 지킨 반복 검사이며 큰 벽시계 차이는 별도 순수 시계와 실제 브라우저에서 확인했다. 재개 후 23/120초에는 두 번째 탄환이 없고 24/120초 경계에서 생성되었다. 10회 60초 간격 뒤 시계의 첫 advance는 기준만 설정하고 이후50ms만6스텝으로 진행했다.
+
+실제 Chromium은 P 유지/repeat와 새 P의 구분, 정지 중 Enter/R·새 이동 입력 무시, 한국어 안내·P 재개 표시·새 버튼 없음, 60초 Canvas/점수 고정, 기존 held 입력 누출 없음과 발사 대기 보존을 확인했다. 별도 10회 pause/resume에서 매번512ms 이동량과 입력 해제·게임 이벤트 리스너 수를 비교했다. CDP는 리스너 정보를 읽었을 뿐 게임 상태를 읽거나 변경하지 않았다. blur/hidden은 진행 중 자동 pause를 만들지 않았고 paused에서 blur도 계속 paused였다.
+
+playing에서 P 무시하던 옛 assertion은 변경 요청에 따라 대체했다. title/won/lost의 금지 입력, Enter/R 제한, 24적·10점·240점·520 경계와 양쪽 종료/재시작, 기존10회 재시작, 상대 에셋·favicon·오류 알림 검사는 유지되어 통과했다. RAF 예약 구조는 변경하지 않았고 누적 가속은 픽셀 이동량으로 검증했다. 브라우저 내부 RAF 큐를 직접 계수했다고 주장하지 않는다.
+
+이 실행에 실패·차단은 없었다. 실행 뒤 이 문서와 IMPLEMENTATION_PLAN.md의 P1/P2 상태를 기록했다. 8절의 미실행 표는 07-02 당시 기록으로 보존하며 07-04에서 수용 기준별 최신 판정을 별도로 정리한다. 실제 공개 P 동작과 성공 배포 SHA는 아직 unverified이며 07-05에서 확인한다. 이번 main 게시도 배포를 유발하지만 로컬 통과만으로 공개 성공이라 하지 않는다. 사람 직접 플레이·실제 OS 포커스·다른 브라우저도 별도 unverified다.

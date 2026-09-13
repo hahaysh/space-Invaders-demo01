@@ -60,7 +60,7 @@ function finite(value, name) {
 }
 
 export function validateState(state) {
-  if (!state || !['title', 'playing', 'won', 'lost'].includes(state.mode)) throw new TypeError('Invalid game mode');
+  if (!state || !['title', 'playing', 'paused', 'won', 'lost'].includes(state.mode)) throw new TypeError('Invalid game mode');
   if (!Array.isArray(state.bullets)) throw new TypeError('bullets must be an array');
   if (!Array.isArray(state.enemies) || state.enemies.length > 24) throw new TypeError('Invalid enemies');
   if (![1, -1].includes(state.enemyDirection)) throw new TypeError('Invalid enemy direction');
@@ -94,7 +94,10 @@ export function validateState(state) {
 
 export function transition(state, action) {
   validateState(state);
-  if (!['start', 'restart'].includes(action)) throw new TypeError('Unknown game action');
+  if (!['start', 'restart', 'togglePause'].includes(action)) throw new TypeError('Unknown game action');
+  if (action === 'togglePause' && ['playing', 'paused'].includes(state.mode)) {
+    return { ...state, mode: state.mode === 'playing' ? 'paused' : 'playing' };
+  }
   if (action === 'start' && state.mode === 'title') return { ...createState(), mode: 'playing' };
   if (action === 'restart' && ['won', 'lost'].includes(state.mode)) return { ...createState(), mode: 'playing' };
   return state;
