@@ -64,3 +64,28 @@
 원래 경로인 127.0.0.1:4173/를 일반 자동 브라우저로 다시 열었다. HTML/JS/CSS 3개 요청 모두 HTTP200, 콘솔 error/warning 0, favicon.ico 요청 없음이었다. 이는 하위 경로 E2E의 실제 SVG decode·상대 에셋 검사와 별도 증거다. TC-19의 현재 판정은 pass이며 R1의 fail은 그대로 보존한다.
 
 R2 실행 당시 변경은 index.html/e2e/game.spec.js, 실행 뒤 기록 변경은 TEST_PLAN.md/TEST_RESULTS.md다. TC-18 반복 재시작은 아직 unverified로 남겨 다음 작은 작업에서 보완한다. TC-21 사람/OS 관찰과 TC-22 Pages도 계속 unverified다.
+
+## 6. R3 — 05-02 GAP-01 반복 재시작 검증
+
+기준 d97a6d11b0a008ba45dcbdd29000a18781cc0092, 2026-09-14의 같은 환경에서 e2e/game.spec.js에 전용 10회 반복 검사를 추가했다. 제품 코드 수정은 없다. 각 판 초기에 512ms 이동량과 첫 탄환·224ms 후 두 탄환, 점수0·위치 초기화를 확인하고 입력을 놓은 뒤 정상 하강으로 패배를 기다렸다. R/버튼을 번갈아 총 10회 재시작한 뒤 11번째 판도 같은 검사를 수행했다.
+
+첫 추가 검사에서는 Playwright가 첫 조작 뒤 지연 설치하는 pointer/click 등 자체 관찰 리스너까지 비교해 1 fail이었다. 이는 게임 결함이 아닌 테스트 관찰 대상 오류였다. 게임의 window keydown/keyup/blur, document focusin/visibilitychange, 시작·재시작 버튼 click으로 범위를 명시하자 각 종류 정확히 하나와 반복 전후 동일함을 확인했다. 기대 이동 속도·발사 수·반복 횟수는 완화하지 않았다. CDP는 이벤트 리스너 정보의 읽기 전용 관찰이며 게임 모델이나 전역 치트가 아니다.
+
+`npm run test:e2e -- --grep 'ten real restarts'` 1/1 pass(약 3분), 이어서 npm test 22/22, 전체 npm run test:e2e 15/15(약 3.2분), npm run build 모두 종료0이었다. 즉 전용 10회 검사를 개별 실행과 전체 회귀에서 각각 수행했다. src/main.js도 읽어 초기 RAF 하나와 같은 frame의 다음 예약 하나뿐이며 act 안에 RAF/리스너 추가가 없음을 확인했다. 실제 픽셀 이동량과 발사 간격 회귀는 누적 가속이 없음을 확인하며 브라우저 내부 RAF 큐를 직접 계수한 검사라고 주장하지 않는다.
+
+R3 실행 시 미커밋 변경은 e2e/game.spec.js였고, 실행 뒤 TEST_PLAN.md/TEST_RESULTS.md/IMPLEMENTATION_PLAN.md를 갱신했다. 원래 R1의 TC-18 unverified와 BUG-01 fail, 새 테스트 관찰 오류도 보존한다.
+
+| 현재 요구사항 | 판정 | 최신 근거 |
+|---|---|---|
+| REQ-01 시작 | pass | TC-01/02, R3 Node·E2E 전체 회귀 |
+| REQ-02 이동 | pass | TC-03~05, 경계·동시 입력·합성 blur와 실제 512ms 이동 |
+| REQ-03 발사 | pass | TC-06~08, 정확한 모델 수치와 반복 재시작 후 실제 발사 |
+| REQ-04 편대 | pass | TC-09/10, 모든 좌표·속도·양 경계·자연 하강 |
+| REQ-05 충돌·점수 | pass | TC-11/12, 다중 충돌 순수 fixture·실제 조작 점수 |
+| REQ-06 승패 | pass | TC-13~15, 520 경계·충돌 우선순위·실제 240점 승리와 패배 |
+| REQ-07 재시작 | pass | TC-16~18, 양쪽 종료의 두 경로와 10회 반복·이벤트 수 안정성 |
+| REQ-08 로컬 실행·표시·빌드 | pass | TC-19/20, 실제 하위 경로·아이콘 decode·일반 preview 콘솔0·전체 빌드 |
+| 사람·실제 OS 관찰 | unverified | TC-21. 자동 Chromium·합성 브라우저 이벤트와 분리 |
+| 공개 Pages 배포 | unverified | TC-22. 06에서 실제 설정·Action·배포 SHA·URL로 확인 예정 |
+
+05-02의 필수 로컬 수용 기준에 열린 실패·차단은 없다. 일반 완료 판단은 사용자 위임으로 채택했고 06으로 진행한다. 이는 아직 공개 배포 완료를 뜻하지 않는다.

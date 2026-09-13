@@ -29,7 +29,7 @@ Node 연결은 tests/game.test.js, 브라우저 연결은 e2e/game.spec.js의 �
 | TC-15 | REQ-06 | Node `both endings freeze`; Playwright 승패 후 공통 검사 | won/lost에서 Enter·P·방향키·Space와 추가 시간 | 위치·탄환·적·점수·상태 고정 |
 | TC-16 | REQ-07 | Node `both endings freeze all state and restart`; Playwright 승리/패배 × key/button | 양쪽 종료에서 R/재시작 버튼, 이전 키 유지·새 입력 | 위치·적24개·점수0·방향·탄환·대기시간·입력 초기화, 첫 발사 즉시 |
 | TC-17 | REQ-07/02 | Playwright 이동 검사; Node 시작 검사 | playing 중 Enter/R | 현재 판 유지. 잘못된 상태의 초기화 없음 |
-| TC-18 | REQ-07 | 수동 후보/자동화 누락 | 10회 연속 자연 패배→R/버튼 재시작, 매 판 같은 시간 이동량·발사 수·상태 비교 | RAF·리스너 중복 없이 속도 유지. 현재 개별 재시작만 있으며 전용 10회 검사는 미구현 |
+| TC-18 | REQ-07 | Playwright `ten real restarts` (05-02 GAP-01 보강) | 10회 연속 자연 패배→R/버튼 재시작, 매 판 같은 시간 이동량·발사 수·상태 비교 | 동일 속도·발사 간격·초기화 유지. CDP로 게임이 사용하는 이벤트 종류별 리스너 수를 읽기 전용 비교 |
 | TC-19 | REQ-08 | Node `original scripts`, `source exposes no`, `production uses relative`; Playwright `built game runs at repository subpath` | manifest/lock·메모리 빌드, 4173의 /space-Invaders-demo01/ 실제 dist 로드·Space | 상대 JS/CSS, 외부 요청·개발 API·문서 부재, DOM 점수·버튼, 404·콘솔 오류 없음 |
 | TC-20 | REQ-08 | Playwright `responsive Canvas`, `native button`, `missing Canvas context` | 좁은 화면, 키보드 버튼·네이티브 컨트롤, Canvas 실패 주입 | 논리 800×600·가로 넘침 없음, 기본 키 조작 보존, 실패 시 한국어 오류와 입력 차단 |
 | TC-21 | REQ-01~08 | 실제 사람 관찰 후보 | preview4173에서 시작·이동·발사·승패·재시작 직접 플레이 | 사람의 체감·시각 관찰. 자동 브라우저와 구분하고 실제 보고 없으면 미확인 |
@@ -48,3 +48,4 @@ TEST_RESULTS에는 실행 시각·대상 SHA/미커밋 파일·명령 종료 상
 ## 4. 05-02 회귀 검사 보강
 
 - BUG-01 / TC-19: 일반 브라우저의 기본 favicon 요청 누락을 방지한다. 기존 배포형 E2E에서 외부 요청 없는 인라인 SVG 아이콘 선언과 실제 이미지 decode를 검사하고, 원래 루트 preview의 콘솔·네트워크도 재확인한다. 게임 규칙 변경은 없다.
+- GAP-01 / TC-18: 한 페이지에서 재시작 10회 전후 같은 512ms 이동량, 첫 발사·간격, 점수0·초기 위치, window/document/두 버튼의 실제 게임 이벤트 리스너 수를 확인한다. CDP는 DOM 이벤트 구독 관찰만 하며 게임 모델·전역 상태를 읽거나 변경하지 않는다. RAF는 소스의 단일 예약 체인 검토와 동일 시간에 대한 실제 움직임 회귀를 함께 확인한다.

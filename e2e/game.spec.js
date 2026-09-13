@@ -204,6 +204,55 @@ test('REQ-05 actual held Space hits and updates the Korean DOM score', async ({ 
   expect(await score(page)).toBeLessThanOrEqual(240);
 });
 
+test('REQ-07 ten real restarts keep movement, firing and listener counts stable', async ({ page }) => {
+  test.setTimeout(240000);
+  const cdp = await page.context().newCDPSession(page);
+  const listenerCounts = async () => {
+    const counts = [];
+    const targets = [
+      ['window', ['keydown', 'keyup', 'blur']],
+      ['document', ['focusin', 'visibilitychange']],
+      ['document.querySelector("#start")', ['click']],
+      ['document.querySelector("#restart")', ['click']],
+    ];
+    for (const [expression, eventTypes] of targets) {
+      const { result } = await cdp.send('Runtime.evaluate', { expression });
+      const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+      counts.push(listeners.filter((listener) => eventTypes.includes(listener.type)).map((listener) => listener.type).sort());
+      await cdp.send('Runtime.releaseObject', { objectId: result.objectId });
+    }
+    return counts;
+  };
+  const baseline = await listenerCounts();
+  expect(baseline[0]).toEqual(['blur', 'keydown', 'keyup']);
+  expect(baseline[1]).toEqual(['focusin', 'visibilitychange']);
+  expect(baseline[2]).toEqual(['click']);
+  expect(baseline[3]).toEqual(['click']);
+  await page.keyboard.press('Enter');
+  for (let round = 0; round <= 10; round += 1) {
+    await advance(page, 32);
+    expect((await picture(page)).left).toBe(381);
+    expect(await score(page)).toBe(0);
+    await page.keyboard.down('ArrowRight');
+    await advance(page, 512);
+    expect(Math.abs((await picture(page)).left - 381 - .512 * 320)).toBeLessThanOrEqual(320 / 120 + 1);
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('Space');
+    await advance(page, 16);
+    expect((await picture(page)).bulletCount).toBe(1);
+    await advance(page, 224);
+    expect((await picture(page)).bulletCount).toBe(2);
+    await page.keyboard.up('Space');
+    expect(await listenerCounts()).toEqual(baseline);
+    if (round === 10) break;
+    await advance(page, 55000);
+    await expect(page.locator('#status')).toContainText('패배');
+    if (round % 2 === 0) await page.keyboard.press('r');
+    else await page.getByRole('button', { name: '다시 도전' }).click();
+  }
+  await cdp.detach();
+});
+
 async function assertFrozenAndRestart(page, outcome, method) {
   await expect(page.locator('#status')).toContainText(outcome);
   const finalScore = await score(page);
