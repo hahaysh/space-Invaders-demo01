@@ -1,5 +1,5 @@
 import './style.css';
-import { RULES, createState, idleInput, transition, update, validateState } from './game.js';
+import { RULES, createState, transition, update } from './game.js';
 import { createClock } from './clock.js';
 
 const canvas = document.querySelector('#game');
@@ -155,18 +155,3 @@ try {
   render();
   requestAnimationFrame(frame);
 } catch (reason) { fail(reason); }
-
-// Deterministic browser inspection / injected fixtures; Vite removes this entire branch in production.
-if (import.meta.env.DEV) {
-  window.__ORBIT_TEST__ = {
-    snapshot: () => structuredClone(state),
-    timing: () => clock.inspect(),
-    input: () => ({ ...idleInput(), ...readInput() }),
-    inject(next) {
-      validateState(next);
-      state = structuredClone(next);
-      clearInput();
-      render();
-    },
-  };
-}
