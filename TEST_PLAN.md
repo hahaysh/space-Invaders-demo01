@@ -44,3 +44,7 @@ Node 연결은 tests/game.test.js, 브라우저 연결은 e2e/game.spec.js의 �
 별도 preview 명령은 npm run preview -- --host 127.0.0.1 --port 4173 --strictPort다. 실제 응답을 확인한 뒤 사용자 입력 기반 브라우저 관찰을 수행하고 이 세션 프로세스만 종료한다. 루트 preview는 하위 경로 증거가 아니며 TC-19의 별도 배포형 E2E와 구분한다.
 
 TEST_RESULTS에는 실행 시각·대상 SHA/미커밋 파일·명령 종료 상태·TC별 실제 assertion을 연결한다. 결과는 pass/fail/unverified, 미실행·환경 차단은 실행상태/사유로 분리한다. 원문 로그의 개인 경로·토큰이나 자동 생성 보고서를 공개 커밋에 포함하지 않는다.
+
+## 4. 05-02 회귀 검사 보강
+
+- BUG-01 / TC-19: 일반 브라우저의 기본 favicon 요청 누락을 방지한다. 기존 배포형 E2E에서 외부 요청 없는 인라인 SVG 아이콘 선언과 실제 이미지 decode를 검사하고, 원래 루트 preview의 콘솔·네트워크도 재확인한다. 게임 규칙 변경은 없다.

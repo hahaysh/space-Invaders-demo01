@@ -280,6 +280,14 @@ test('REQ-08 built game runs at repository subpath with no development hooks or 
   await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
   await page.goto('http://127.0.0.1:4173/space-Invaders-demo01/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Orbit Defender');
+  const icon = page.locator('link[rel="icon"]');
+  await expect(icon).toHaveAttribute('href', /^data:image\/svg\+xml,/);
+  expect(await icon.evaluate(async (link) => {
+    const image = new Image();
+    image.src = link.href;
+    await image.decode();
+    return image.naturalWidth > 0 && image.naturalHeight > 0;
+  })).toBe(true);
   expect(await page.evaluate(() => '__ORBIT_TEST__' in window)).toBe(false);
   await page.screenshot({ path: testInfo.outputPath('title.png') });
   await page.getByRole('button', { name: '방어 시작' }).click();
