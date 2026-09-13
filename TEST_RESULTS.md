@@ -89,3 +89,28 @@ R3 실행 시 미커밋 변경은 e2e/game.spec.js였고, 실행 뒤 TEST_PLAN.m
 | 공개 Pages 배포 | unverified | TC-22. 06에서 실제 설정·Action·배포 SHA·URL로 확인 예정 |
 
 05-02의 필수 로컬 수용 기준에 열린 실패·차단은 없다. 일반 완료 판단은 사용자 위임으로 채택했고 06으로 진행한다. 이는 아직 공개 배포 완료를 뜻하지 않는다.
+
+## 7. R4 — 06-03 최초 실제 Pages 배포
+
+06-01에서 실제 Public demo01/관리 권한/기본 main/공통 이력과 공개 내용을 점검했다. 인증된 gh REST API로 Pages 게시 소스를 workflow로 설정하고 github-pages 환경은 main 브랜치 규칙 하나만 허용했다. 기존 보호·승인자를 제거하지 않았으며 사람의 GitHub 웹 버튼 조작을 대행한 도구 실행이다. 06-02에는 사용자 위임에 따른 일반 main 게시로 배포를 시작했다. 원문의 PR 생성·검토·병합 UI 경로는 이번 사용자 운영 예외로 수행하지 않았다.
+
+| 증거 | 실제 값·판정 |
+|---|---|
+| 배포 코드 SHA | e73fc721847396180e27056a9e7f3d460934c5a6 |
+| Actions | https://github.com/hahaysh/space-Invaders-demo01/actions/runs/34774220285 |
+| 실제 실행 시간 | 2026-09-13 18:18:31~18:21:55 UTC (09-14 03:18~03:21 KST) |
+| build / deploy | 둘 다 success. npm ci → Node → Chromium 설치 → E2E → build → dist 업로드 → deploy 실제 단계 모두 success |
+| CI 환경·검사 | Ubuntu, Node24.20.0, npm11.19.0, npm ci 설치 성공, Node22/22, Chromium15/15. 로컬24.14.1/npm10.8.3과 패치/npm 환경 차이를 구분하며 같은 Node24 LTS 계열 |
+| 성공 deployment | 6424863793, SHA 일치, environment_url=https://hahaysh.github.io/space-Invaders-demo01/ |
+| 공개 주소 | https://hahaysh.github.io/space-Invaders-demo01/ |
+| 실제 아티팩트 | 다운로드한 github-pages의 tar 목록은 index.html과 assets의 JS/CSS 두 개뿐. 문서·소스·테스트·node_modules 없음 |
+| 공개 바이트 | 실제 HTTPS HTML/JS/CSS의 바이트가 위 성공 실행의 아티팩트와 각각 완전히 일치 |
+| 공개 브라우저 | 2026-09-13 18:24:22 UTC 완료, Windows Chromium145.0.7632.6 자동화·제어 시간 |
+
+공개 브라우저에서 새 페이지와 반복 새로고침, title의 금지 입력, Enter/버튼 시작, A/D·양쪽 방향키·x 경계·양방향 정지, 첫 탄환·발사 간격·10의 배수 점수 증가를 확인했다. 실제 Space·좌우 조작으로 240점 승리, 별도 무발사 정상 하강으로 패배를 각각 두 번 확인하고 양쪽 종료에서 R/버튼 네 경로의 완전한 재시작·입력 해제·첫 발사를 확인했다. 종료 후 방향·Space·Enter·P와 시간 경과에도 Canvas가 고정되었다.
+
+800×600 논리 크기와 좁은 화면의 가로 넘침 없음도 확인했다. 네트워크는 위 공개 저장소 경로의 HTML/JS/CSS 세 종류만 요청했고 404·콘솔 오류·외부 에셋·개발 상태 API는 없었다. 픽셀은 읽기 전용으로 관찰했으며 게임 상태 주입은 하지 않았다. 정확한 520 경계/충돌 fixture는 R3의 순수 모델 근거, 공개 실행의 자연 승패는 R4의 실제 UI 근거로 구분한다.
+
+TC-22의 현재 판정은 pass다. 사람이 직접 플레이한 결과·OS 포커스·Firefox/WebKit은 여전히 unverified다. PR 및 다른 브랜치 수동 실행의 원격 수행 증거는 없으며, 해당 업로드/배포 금지는 06-02 YAML 구조와 로컬 이벤트 조건표로 확인했다. Pages 설정 API의 status는 null이었지만 성공 deployment·실제 공개 응답을 별도로 확인했으므로 설정 필드만으로 성공을 추정한 것이 아니다.
+
+이 기록은 배포 SHA 이후의 TEST_RESULTS.md 전용 기록 커밋으로 보존한다. 사용자 정책상 이 문서의 main 게시도 같은 게임을 다시 배포할 수 있다. 기록 커밋 SHA와 검증된 배포 SHA를 혼동하거나, 기록 커밋의 재배포를 적기 위해 다시 기록 커밋을 만드는 반복을 하지 않는다.
