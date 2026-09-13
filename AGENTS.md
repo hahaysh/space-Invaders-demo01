@@ -12,7 +12,7 @@
 - AGENTS.md는 작업 지침이며 Custom agent 정의가 아니다. ideation.md는 아이디어·선택 이유, PRD.md는 요구사항·수용 기준, TRD.md는 구현 설계의 기준이다. IMPLEMENTATION_PLAN.md는 작업 순서·의존성, TEST_PLAN.md는 검증 절차·기대 결과, TEST_RESULTS.md는 실제 수행·증거를 맡는다. 제품 명세·수치를 이 파일에 복제하지 않는다.
 - 최소 AGENTS 작성 → ideation → PRD → TRD → 문서 점검·설계 승인과 AGENTS 보완 → 구현 계획·구현 → 테스트 계획·결과 정리 순서를 따른다. 테스트 코드는 구현과 함께 작성하며 05단계 문서 정리까지 미루지 않는다.
 - 최초 요구사항 ID는 REQ-01~REQ-08 형식을 사용하고 설계·구현 작업·테스트에서 참조한다. 실제 요구 내용과 번호 대응은 PRD에서 승인한다. 테스트 실행 결과는 테스트 ID로 연결한다.
-- 실행·빌드·테스트 명령은 아래 04-02 M1 실제 검증 목록을 사용한다. 후속 단계의 예정 명령을 실행 완료로 기록하지 않는다.
+- 실행·빌드·테스트 명령은 아래 원문 보정 후 현재 기준 목록을 사용한다. 후속 단계의 예정 명령을 실행 완료로 기록하지 않는다.
 
 ## 검증과 기록
 - 테스트 계획과 실제 결과를 분리한다. 실제 수행한 명령·절차, 대상 커밋·환경, 관측 결과·증거를 기록한다.
@@ -26,28 +26,35 @@
 - 04-03 M2에서 모델·빌드 검사 15개와 Chromium E2E 9개, M3에서 모델·빌드 검사 20개와 Chromium E2E 18개 및 npm run build가 모두 pass였다. 이는 훅 제거 보정 전 실행 이력이며 현재 검증 기준은 아래 보정 절이다. 기존 마일스톤의 개별 커밋·게시를 유지하고 보정 이후에도 05로 진행하지 않는다.
 - 상태 주입은 순수 모델 단위 테스트에서만 사용한다. 개발·배포 모두 window 상태 변경·즉시 승리 치트와 테스트 전용 상태 API를 노출하지 않는다. 브라우저는 실제 키·버튼·제어 시간으로 진행하며 DOM·Canvas를 읽기 전용으로 관찰한다. 생성물·node_modules·테스트 임시 결과를 커밋하지 않는다.
 
-## 실제 로컬 명령·환경 (04-02 M1)
+## 실제 로컬 명령·환경 (원문 보정 후 현재 기준)
 - Windows, Node v24.14.1, npm 10.8.3에서 package.json 생성 후 npm install을 실행했다. Vite 7.3.6, @playwright/test 1.58.2, 전이 esbuild 0.28.2를 package-lock.json으로 고정했다. 최초 의존성 감사 경고는 Vite 패치와 npm audit fix로 해소했고 최종 0 vulnerabilities였다.
-- 보정 시 npm view vite@7.3.6 및 npm view @playwright/test@1.58.2 메타데이터와 lockfileVersion 3의 설치 버전을 대조했다. 두 패키지의 잠금 파일 SHA-1 integrity도 실제 registry dist.shasum과 일치했다. manifest는 caret/latest/시험판 없이 정확한 안정 버전이며 tests/build.test.js가 manifest·잠금 파일 버전 일치와 유효한 SRI 형식을 검사한다. 이후 의존성 복원은 npm ci를 사용한다. 이번 보정에는 복원이 필요 없어 npm ci를 실행하지 않았다.
-- npm run dev: 127.0.0.1:5175 strictPort. 실제 실행 후 HTTP 200·제목 응답을 확인하고 해당 서버를 종료했다.
-- npm run test:e2e: Playwright 관리 127.0.0.1:4175 strictPort. reuseExistingServer:false이며 테스트 종료 시 해당 서버를 정리한다. Chromium 실행 파일 부재 실패를 확인한 다음 npx playwright install chromium을 실행했고 Chromium 145.0.7632.6으로 재검증했다.
-- npm run build: 상대 base './'로 dist만 생성한다. npm test의 tests/build.test.js도 메모리 빌드 결과에서 상대 에셋 경로, 개발 훅·문서·외부 URL 부재를 검사한다.
-- npm run preview: 127.0.0.1:4176 strictPort. 실제 실행 후 HTTP 200·상대 에셋 응답을 확인하고 해당 서버를 종료했다.
+- 보정 시 npm view vite@7.3.6 및 npm view @playwright/test@1.58.2 메타데이터와 lockfileVersion 3의 설치 버전을 대조했다. 두 패키지의 잠금 파일 SHA-1 integrity도 실제 registry dist.shasum과 일치했다. manifest는 caret/latest/시험판 없이 정확한 안정 버전이며 tests/game.test.js가 manifest·잠금 파일 버전 일치와 유효한 SRI 형식을 검사한다. 이후 의존성 복원은 npm ci를 사용한다. 이번 보정에는 복원이 필요 없어 npm ci를 실행하지 않았다.
+- dev 스크립트는 vite다. 실행 명령은 npm run dev -- --host 127.0.0.1 --port 5173 --strictPort이며 실제 HTTP 200·제목 응답 확인 후 해당 서버를 종료한다.
+- npm run test:e2e: testDir e2e, Chromium 프로젝트, url/baseURL http://127.0.0.1:5173. webServer는 위 dev 명령이며 reuseExistingServer:false다. Chromium 실행 파일 부재 실패를 확인한 다음 npx playwright install chromium을 실행했고 Chromium 145.0.7632.6으로 검증했다.
+- npm run build: 상대 base './'로 dist만 생성한다. tests/game.test.js도 메모리 빌드 결과에서 상대 에셋 경로, 개발 훅·문서·외부 URL 부재를 검사한다.
+- preview 스크립트는 vite preview다. 실행 명령은 npm run preview -- --host 127.0.0.1 --port 4173 --strictPort이며 실제 HTTP 200·상대 에셋 응답 확인 후 해당 서버를 종료한다.
 - 브라우저 시간은 page.clock으로 제어하며 게임 상태를 읽거나 바꾸는 전역 테스트 API는 없다. 원본 src/main.js와 배포 빌드에서 훅이 없음을 검사한다. 이전 개발 훅 허용은 실습 원문 해석 오류로 보정했다.
 - blur/visibility 검사는 브라우저 이벤트·document.hidden 제어 검증이다. 실제 사람 플레이, OS 수준 포커스, 공개 게임 URL·Pages 배포는 unverified이며 자동 시험을 사람 확인으로 기록하지 않는다.
 
 ## M3 통합 검증과 파일 책임 (04-03)
-- npm run test:e2e는 이제 개발 서버 4175와 빌드 후 preview 서버 4176을 함께 관리한다. 후자는 npm run build && npm run preview -- --base /space-Invaders-demo01/로 실행한다. 두 서버 모두 재사용하지 않으며 종료 후 포트 수신자가 없음을 확인한다. 일반 npm run dev는 여전히 5175다.
-- src/game.js의 createState/createEnemies/idleInput/transition/update/validateState/overlaps와 RULES가 순수 모델 API다. update는 명시적 입력과 0~0.1초 시간만 받고 원본 상태를 변경하지 않는다. src/clock.js의 createClock은 1/120초 고정 스텝·프레임 0.1초 상한·reset을 담당하고 src/main.js만 DOM·키·단일 RAF·렌더링을 담당한다.
+- npm run test:e2e는 개발 서버 5173과 별도 빌드 preview 4173을 관리한다. 후자는 npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort --base /space-Invaders-demo01/로 실행한다. 두 서버 모두 재사용하지 않으며 종료 후 포트 수신자가 없음을 확인한다.
+- src/game.js의 createState/createEnemies/idleInput/transition/update/validateState/overlaps와 RULES가 순수 모델 API다. update는 명시적 입력과 0~0.1초 시간만 받고 원본 상태를 변경하지 않는다. 같은 모듈의 createClock은 1/120초 고정 스텝·프레임 0.1초 상한·reset을 담당하고 src/main.js만 DOM·키·단일 RAF·렌더링을 담당한다.
 - tests/game.test.js는 순수 모델에 한정한 상태 주입으로 수치·충돌·승패 우선순위·완전 초기화·금지 상태·잘못된 입력을 검증한다. e2e/game.spec.js는 실제 Chromium 키·버튼과 제어 시간만으로 승패까지 진행한다. DOM 점수·결과와 렌더링된 Canvas 픽셀 관찰은 게임 모델의 직접 조회나 변경이 아니다.
-- e2e/production.spec.js는 실제 dist preview의 저장소 하위 경로에서 한국어 DOM·발사·점수·상대 JS/CSS 요청, 외부 요청과 개발 훅 부재, 좁은 화면 표시를 검증한다. Canvas 컨텍스트 부재는 명시적 실패 주입으로 한국어 오류 표시·추가 입력 차단을 확인한다. 공개 Pages 검증과 구분한다.
+- e2e/game.spec.js의 배포형 검사도 실제 dist preview의 저장소 하위 경로에서 한국어 DOM·발사·점수·상대 JS/CSS 요청, 외부 요청과 개발 훅 부재, 좁은 화면 표시를 검증한다. Canvas 컨텍스트 부재는 명시적 실패 주입으로 한국어 오류 표시·추가 입력 차단을 확인한다. 공개 Pages 검증과 구분한다.
 - test-results의 화면 캡처는 자동 생성된 무시 대상이며 공개 커밋에 포함하지 않는다. TEST_PLAN.md/TEST_RESULTS.md는 여전히 05에서 작성하며 이번 단계에는 만들지 않는다.
 
 ## 전역 테스트 훅 제거 보정 (2026-09-14)
 - 원문 해석 보정 요청 도착 전에 M1~M3가 게시되어 있었다. 이력을 재작성하지 않고 별도 보정하며 제품 기능·수치·기존 단계 순서는 변경하지 않는다. TRD 끝에는 03-02 승인 날짜, 당시 설계 보류 없음, 다음 범위 04-01을 명시하되 당시 테스트를 수행했다고 주장하지 않는다.
 - npm test 22개(기존 모델·시계 19개, 소스·잠금·빌드 3개), npm run test:e2e 14개, npm run build가 모두 pass다. E2E는 상태 주입 검사를 제거하고 실제 입력 경로로 대체했다. 무발사 55초의 정상 하강으로 패배, Space 유지·1초 간격 좌우 조작으로 240점 승리를 확인했으며 양쪽 종료 모두 R/버튼 재시작을 검증했다.
 - 승패와 입력 누출·정지 검증은 실제 브라우저 게임 규칙을 거쳤다. 정확한 모델 수치는 단위 테스트에서 검사하며 Canvas 이동 관찰은 512ms의 완전한 RAF 슬롯으로 진행하고 고정 스텝 한 번과 픽셀 래스터화의 양자화 차이만 허용한다. 실제 승리/R·버튼 재시작은 추가로 각 3회 반복해 6/6 pass였다. 사람 직접 플레이·OS포커스·Firefox/WebKit·Pages는 계속 unverified다.
-- src/style.css와 dev 5175 / E2E 4175 / preview 4176은 채택한 일관된 로컬 설정이다. 원문의 예시 파일명·기본 포트와 다른 것은 기능·설계 변경이 아니며 현재 설정을 유지한다.
+- 이전 단수 스타일명·대체 포트 선택은 원문 재현 지시에 맞지 않았으며 다음 보정에서 수정했다. 이전 설정을 원문 일치나 불가피한 대안으로 정당화하지 않는다.
+
+## 원문 경로·명령 보정 (2026-09-14)
+- gh api로 hahaysh/space-Invaders의 c545b103a8816a061bb754d9ca92f59d25cfa7a9에 있는 docs/04-02-first-playable.md(10026바이트, blob 843ba23b9b0317875bb6460b84a1d8e81786ff76)와 docs/04-03-core-gameplay.md(8313바이트, blob d2e9b117815704ddfe3ab91db56a4110e7fc5830) 전문을 읽었다. 현재 참가자 저장소에는 해당 커밋이 없어 첫 조회가 404였고 원문 저장소를 확인해 다시 읽었다.
+- Get-NetTCPConnection의 LISTEN 조회에서 5173/4173 점유가 없음을 확인했다. 따라서 src/styles.css·기본 포트 5173/4173·원문 scripts와 Chromium 프로젝트로 맞췄다. 다른 프로세스를 종료하지 않았다.
+- 보정판에서 npm test 22/22·npm run test:e2e Chromium 14/14·npm run build가 pass였다. 자동 시험 종료 후 위 dev 5173·별도 preview 4173 명령도 직접 실행하여 HTTP 200과 제목·상대 에셋 응답을 확인하고 해당 세션 서버만 종료했다. 사람의 키보드 플레이를 대신했다고 기록하지 않는다.
+- 원문 허용 경로 밖의 별도 시간 모듈·빌드 검사·배포형 E2E 파일은 각각 src/game.js·tests/game.test.js·e2e/game.spec.js로 통합했다. 기존 규칙과 검사 22개/14개를 유지한다. IMPLEMENTATION_PLAN.md에 누락된 단계별 실제 진척·미확인을 추가했다.
+- 이 요청 전 M1~M3와 앞선 보정이 이미 게시되어 있었다. 별도 일반 FF 보정으로 처리하고 당시부터 원문과 일치했다고 주장하지 않는다. 사람의 개별 완료 승인·직접 플레이는 미확인이며 사용자 위임에 따른 자동 진행과 구분한다.
 
 ## 변경 보존과 공개 안전
 - 기존 사용자 변경을 삭제·되돌리거나 관련 없는 변경을 커밋에 섞지 않는다. 예상 밖 변경이나 출처가 불명확한 변경이 있으면 보고하고 확인한다.

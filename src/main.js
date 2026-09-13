@@ -1,6 +1,5 @@
-import './style.css';
-import { RULES, createState, transition, update } from './game.js';
-import { createClock } from './clock.js';
+import './styles.css';
+import { RULES, createState, transition, update, createClock } from './game.js';
 
 const canvas = document.querySelector('#game');
 const ctx = canvas.getContext('2d');

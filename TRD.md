@@ -10,8 +10,8 @@
 
 | 예정 파일 | 책임 | 요구사항 |
 |---|---|---|
-| index.html, src/style.css | 제목·안내·DOM 상태·점수·버튼, Canvas와 반응형 표시 | REQ-01/08 |
-| src/game.js | DOM·시간 API와 분리된 상태 생성, 입력별 전환, 규칙 갱신 | REQ-01~07 |
+| index.html, src/styles.css | 제목·안내·DOM 상태·점수·버튼, Canvas와 반응형 표시 | REQ-01/08 |
+| src/game.js | DOM·실시간 API와 분리된 상태 생성, 입력별 전환, 규칙 갱신과 명시적 시간 누적 | REQ-01~07 |
 | src/main.js | 키·버튼 입력, RAF 시간 관리, 모델 호출, Canvas·DOM 렌더링 | REQ-01~08 |
 | tests/game.test.js | 명시적 입력·시간·경계 상태를 주는 결정적 모델 테스트 | REQ-01~07 |
 | e2e/game.spec.js | 실제 브라우저 키·버튼·DOM·Canvas·오류 및 초기화 검증 | REQ-01~08 |
@@ -62,13 +62,13 @@ Canvas 논리 크기는 800×600으로 유지하며 CSS 표시는 화면 폭에 
 
 | 예정 명령 | 목적·상태 |
 |---|---|
-| npm run dev | Vite 로컬 서버, 아직 스크립트 없음 |
+| npm run dev -- --host 127.0.0.1 --port 5173 --strictPort | dev: vite, 원문 개발·E2E 포트 5173 |
 | npm test | node --test tests/*.test.js, e2e를 Node 테스트 수집에서 제외 |
 | npm run test:e2e | Playwright, 전용 고정 포트·strictPort 서버 |
 | npm run build | Vite dist 생성 |
-| npm run preview | 빌드 결과 로컬 확인 |
+| npm run preview -- --host 127.0.0.1 --port 4173 --strictPort | preview: vite preview, 별도 빌드 확인 포트 4173 |
 
-Vite base는 상대 경로인 './'로 설정한다. Playwright 서버는 127.0.0.1 전용 테스트 포트를 사용하고 다른 세션의 서버를 임의 재사용하지 않는다. 실제 명령과 포트는 구현 파일이 생긴 뒤 실행 검증하여 AGENTS에 반영한다.
+Vite base는 상대 경로인 './'로 설정한다. Playwright의 Chromium 프로젝트는 testDir e2e와 url/baseURL http://127.0.0.1:5173을 사용한다. webServer 명령은 npm run dev -- --host 127.0.0.1 --port 5173 --strictPort이며 reuseExistingServer는 false다. 기존 프로세스를 임의 종료하지 않고 점유 시 보고한다. dist 하위 경로 검사는 별도의 4173 preview로 실행하며 두 포트를 혼동하지 않는다.
 
 06단계에서 GitHub Actions의 테스트·빌드 후 dist만 Pages 아티팩트로 게시한다. 기본 contents:read, 배포 작업만 pages:write/id-token:write를 사용하며 github-pages 환경은 main만 허용한다. PR은 테스트·빌드만, main 및 main의 수동 실행만 배포한다. 현재 워크플로·Pages 설정은 아직 없다.
 
@@ -77,6 +77,10 @@ Vite base는 상대 경로인 './'로 설정한다. Playwright 서버는 127.0.0
 M1은 시작·이동·발사와 로컬 실행, M2는 적·충돌·점수, M3는 종료·재시작·DOM 통합이다. P 일시정지, 난이도, 목숨은 각각 07·08·09에서 문서부터 변경하며 선행 구현하지 않는다.
 
 02-03의 설계 검토는 파일 책임·요구사항 대응·시간/입력/충돌 경계를 대상으로 한다. 실제 구현·명령 실행·브라우저·배포 검증은 미수행이다. 인간의 직접 플레이나 OS 수준 포커스 검증도 수행했다고 기록하지 않는다.
+
+## 8. 원문 경로·실행 설정 보정
+
+2026-09-14에 hahaysh/space-Invaders의 고정 커밋 c545b103a8816a061bb754d9ca92f59d25cfa7a9에서 docs/04-02-first-playable.md와 docs/04-03-core-gameplay.md 전문을 gh api로 읽었다. 기존 단수 스타일명·대체 포트는 원문 재현에 맞지 않아 src/styles.css와 5173/4173으로 보정했다. 별도 보조 파일에 있던 시간 누적·빌드 검사·배포형 브라우저 검사를 원문의 src/game.js·tests/game.test.js·e2e/game.spec.js에 통합하며 제품 규칙·검증을 제거하지 않는다.
 
 ## 설계 승인
 
