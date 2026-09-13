@@ -33,7 +33,7 @@ Node 연결은 tests/game.test.js, 브라우저 연결은 e2e/game.spec.js의 �
 | TC-19 | REQ-08 | Node `original scripts`, `source exposes no`, `production uses relative`; Playwright `built game runs at repository subpath` | manifest/lock·메모리 빌드, 4173의 /space-Invaders-demo01/ 실제 dist 로드·Space | 상대 JS/CSS, 외부 요청·개발 API·문서 부재, DOM 점수·버튼, 404·콘솔 오류 없음 |
 | TC-20 | REQ-08 | Playwright `responsive Canvas`, `native button`, `missing Canvas context` | 좁은 화면, 키보드 버튼·네이티브 컨트롤, Canvas 실패 주입 | 논리 800×600·가로 넘침 없음, 기본 키 조작 보존, 실패 시 한국어 오류와 입력 차단 |
 | TC-21 | REQ-01~08 | 실제 사람 관찰 후보 | preview4173에서 시작·이동·발사·승패·재시작 직접 플레이 | 사람의 체감·시각 관찰. 자동 브라우저와 구분하고 실제 보고 없으면 미확인 |
-| TC-22 | REQ-08 | 06단계 실제 Pages 확인 예정 | 실제 Actions SHA·page_url에서 새로고침·네트워크·게임 조작 | 공개 배포와 하위 경로 정상. 현재 미배포이므로 로컬 결과로 대체하지 않음 |
+| TC-22 | REQ-08 | 실제 Pages 확인 | 실제 Actions SHA·page_url에서 새로고침·네트워크·게임 조작 | 공개 배포와 하위 경로 정상. 06 최초 결과는 R4이며 후속 변경도 실제 URL에서 별도 확인 |
 
 ## 3. 실행 순서와 증거
 
@@ -49,3 +49,16 @@ TEST_RESULTS에는 실행 시각·대상 SHA/미커밋 파일·명령 종료 상
 
 - BUG-01 / TC-19: 일반 브라우저의 기본 favicon 요청 누락을 방지한다. 기존 배포형 E2E에서 외부 요청 없는 인라인 SVG 아이콘 선언과 실제 이미지 decode를 검사하고, 원래 루트 preview의 콘솔·네트워크도 재확인한다. 게임 규칙 변경은 없다.
 - GAP-01 / TC-18: 한 페이지에서 재시작 10회 전후 같은 512ms 이동량, 첫 발사·간격, 점수0·초기 위치, window/document/두 버튼의 실제 게임 이벤트 리스너 수를 확인한다. CDP는 DOM 이벤트 구독 관찰만 하며 게임 모델·전역 상태를 읽거나 변경하지 않는다. RAF는 소스의 단일 예약 체인 검토와 동일 시간에 대한 실제 움직임 회귀를 함께 확인한다.
+
+## 5. CHG-01 검사 계획 (07-02)
+
+| TC | 기준 | 절차·기대 결과 |
+|---|---|---|
+| TC-P01 | AC1/8 | 모델·실제 P로 playing↔paused. title/won/lost의 P와 paused Enter/R은 상태 불변 |
+| TC-P02 | AC2 | P 유지·반복 keydown은 한 번만 전환, keyup 후 새 P로 재개. 네이티브 컨트롤에 포커스가 있으면 게임 P를 처리하지 않음 |
+| TC-P03 | AC3 | 탄환·점수·쿨다운이 있는 순수 paused 상태에 반복 dt/입력 전달 후 전체 값 불변. 재개 후 남은 쿨다운 경계 전/도달을 검사 |
+| TC-P04 | AC3/4/5/6 | 이동·발사 중 P, 상태/안내와 Canvas·점수 보존. 60초 제어 시간 후 재개해 이전 키 누출·위치 점프·발사 가속 없음 |
+| TC-P05 | AC5 | playing의 blur/hidden은 자동 pause 없이 키만 해제, paused의 blur는 paused 유지. 새 입력만 이동·발사 |
+| TC-P06 | AC7/8 | 10회 P 정지/재개 후 같은 시간 이동량·발사/키 동작, 단일 RAF 소스와 구독 수 확인. 기존 TC-01~20·배포형 하위 경로·전체 Node/E2E/build 회귀 |
+
+07-02에서는 테스트 코드를 작성하거나 실행하지 않는다. 원래 playing에서 P가 무효였다는 브라우저 assertion은 CHG-01 승인 동작으로 바꾸되 Enter/R 무효와 title/종료 P 무효는 유지한다. 공개 TC-22의 최초 결과를 보존하고 개선 배포의 P·기존 동작은 07-05에서 별도 확인한다.
