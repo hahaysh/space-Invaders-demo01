@@ -77,6 +77,17 @@ function drawSpace() {
 function render() {
   if (!ctx) throw new Error('Canvas 2D를 사용할 수 없습니다.');
   drawSpace();
+  for (const enemy of state.enemies) {
+    const { x, y, width, height } = enemy;
+    ctx.fillStyle = ['#a9baff', '#80d4ef', '#f5bb90'][Math.floor(enemy.id / RULES.enemyColumns)];
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = '#10203a';
+    ctx.fillRect(x + 8, y + 7, 7, 6);
+    ctx.fillRect(x + 25, y + 7, 7, 6);
+    ctx.fillRect(x + 15, y + 19, 10, 5);
+    ctx.fillStyle = '#ffffff70';
+    ctx.fillRect(x + 3, y + 2, width - 6, 2);
+  }
   const { x, y, width, height } = state.player;
   ctx.fillStyle = '#83f1d4';
   ctx.beginPath();

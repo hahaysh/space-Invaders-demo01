@@ -151,3 +151,59 @@ test('Clock real RAF is single, fixed and capped after a long frame', async ({ p
   expect((await snapshot(page)).player.x - x).toBeLessThanOrEqual(32.00001);
   await page.keyboard.up('ArrowRight');
 });
+
+test('REQ-04 real clock moves 24 enemies and reflects at the edge once', async ({ page }) => {
+  const initial = await snapshot(page);
+  expect(initial.enemies).toHaveLength(24);
+  expect(initial.enemies[23]).toEqual({ id: 23, x: 616, y: 168, width: 40, height: 24 });
+  await advance(page, 300);
+  expect((await snapshot(page)).enemies).toEqual(initial.enemies);
+  await page.keyboard.press('Enter');
+  await advance(page, 32);
+  const before = (await snapshot(page)).enemies[0].x;
+  const beforeSteps = await page.evaluate(() => window.__ORBIT_TEST__.timing().steps);
+  await advance(page, 1000);
+  const after = await snapshot(page);
+  const afterSteps = await page.evaluate(() => window.__ORBIT_TEST__.timing().steps);
+  expect(afterSteps - beforeSteps).toBeGreaterThanOrEqual(118);
+  expect(afterSteps - beforeSteps).toBeLessThanOrEqual(122);
+  expect(after.enemies[0].x - before).toBeCloseTo((afterSteps - beforeSteps) / 120 * 64, 8);
+  expect(after.enemies[0].y).toBe(72);
+  await advance(page, 1300);
+  const boundary = await snapshot(page);
+  expect(boundary.enemyDirection).toBe(-1);
+  expect(boundary.enemies.every((enemy) => enemy.x >= 0 && enemy.x + enemy.width <= 800)).toBe(true);
+  expect(boundary.enemies[0].y).toBe(96);
+  await advance(page, 100);
+  expect((await snapshot(page)).enemies[0].y).toBe(96);
+});
+
+test('REQ-05 real held Space hits enemies and DOM score follows the model', async ({ page }) => {
+  await page.getByRole('button', { name: '방어 시작' }).click();
+  await advance(page, 32);
+  await page.keyboard.down('Space');
+  await advance(page, 1800);
+  await page.keyboard.up('Space');
+  const game = await snapshot(page);
+  expect(game.score).toBeGreaterThan(0);
+  expect(game.score).toBe((24 - game.enemies.length) * 10);
+  await expect(page.locator('#score')).toHaveText(String(game.score));
+});
+
+test('REQ-05 injected overlap fixture uses the actual loop and scores once', async ({ page }) => {
+  await page.keyboard.press('Enter');
+  await page.evaluate(() => {
+    const game = window.__ORBIT_TEST__.snapshot();
+    game.enemies = [{ ...game.enemies[0], x: 100, y: 100 }];
+    game.bullets = Array.from({ length: 3 }, () => ({ x: 110, y: 115, width: 4, height: 12 }));
+    window.__ORBIT_TEST__.inject(game);
+  });
+  await advance(page, 32);
+  const after = await snapshot(page);
+  expect(after.score).toBe(10);
+  expect(after.enemies).toHaveLength(0);
+  expect(after.bullets).toHaveLength(2);
+  await expect(page.locator('#score')).toHaveText('10');
+  await advance(page, 300);
+  expect((await snapshot(page)).score).toBe(10);
+});
