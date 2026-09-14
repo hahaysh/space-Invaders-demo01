@@ -24,12 +24,12 @@ Node 연결은 tests/game.test.js, 브라우저 연결은 e2e/game.spec.js의 �
 | TC-10 | REQ-04 | Node `exact boundary`, `before / beyond boundary` | 양쪽 경계 직전·도달·초과, 생존 적 하나의 외곽으로 진행 | 화면 안에서 한 번 반전·24px 하강, 이후 반복 하강 없음 |
 | TC-11 | REQ-05 | Node `strict area overlap`; Playwright `actual held Space hits` | 네 변 접촉·빗나감·작은 면적 겹침, 실제 Space 명중 | 접촉 비충돌, 겹침 명중. 실제 DOM 점수가 10의 배수로 증가 |
 | TC-12 | REQ-05 | Node `one bullet removes at most one`, `multiple bullets cannot score` | 한 탄환·여러 적, 여러 탄환·한 적, 전체 24개 명중 fixture | 탄환당 최대 한 적, 같은 적 점수 한 번, 전체 240점 |
-| TC-13 | REQ-06 | Node `bottom below / exactly at / above 520`, `collision precedes defeat` | dt=0에서 적 하단519.999/520/520.001, 마지막 적 명중과 다른 생존 적 도달 | 520부터 lost. 충돌 후 생존 적만 판정하고 lost 검사 후 won |
-| TC-14 | REQ-06 | Node `complete no-input round`; Playwright `natural no-shoot defeat`, `real movement and firing` | 실제 Enter 시작 후 무발사 55초, 별도 판은 Space와 1초 간격 좌우 입력 | 자연 패배와 실제 조작 240점 승리. 브라우저 상태 주입 없음 |
+| TC-13 | REQ-06/CHG-03 | Node `bottom below / exactly at / above 520`, `collision precedes defeat` | dt=0의519.999/520/520.001, 목숨3/2/1, 마지막 적과 다른 생존 적 도달 | 520부터1 차감, 남으면retry·0만lost. 제거 적 제외·다른 생존 위험 적 우선 |
+| TC-14 | REQ-06/CHG-03 | Node `complete no-input round`; Playwright `natural no-shoot defeat`, `real movement and firing` | 보통 무발사 각55초와 실제 Enter/버튼 재도전 두 번, 별도 판 실제 이동·발사 | 3→2→1→0·최종lost와 실제240점won. 상태 주입 없음 |
 | TC-15 | REQ-06 | Node `both endings freeze`; Playwright 승패 후 공통 검사 | won/lost에서 Enter·P·방향키·Space와 추가 시간 | 위치·탄환·적·점수·상태 고정 |
-| TC-16 | REQ-07 | Node `both endings freeze all state and restart`; Playwright 승리/패배 × key/button | 양쪽 종료에서 R/재시작 버튼, 이전 키 유지·새 입력 | 위치·적24개·점수0·방향·탄환·대기시간·입력 초기화, 첫 발사 즉시 |
+| TC-16 | REQ-07/CHG-03 | Node `both endings freeze all state and restart`; Playwright 승리/패배 × key/button | 양쪽 종료에서 R/재시작 버튼, 이전 키 유지·새 입력 | 기존 초기화와 목숨3·선택 난이도 적용. retry의 보존 초기화는TC-L04 |
 | TC-17 | REQ-07/02 | Playwright 이동 검사; Node 시작 검사 | playing 중 Enter/R | 현재 판 유지. 잘못된 상태의 초기화 없음 |
-| TC-18 | REQ-07 | Playwright `ten real restarts` (05-02 GAP-01 보강) | 10회 연속 자연 패배→R/버튼 재시작, 매 판 같은 시간 이동량·발사 수·상태 비교 | 동일 속도·발사 간격·초기화 유지. CDP로 게임이 사용하는 이벤트 종류별 리스너 수를 읽기 전용 비교 |
+| TC-18 | REQ-07/CHG-03 | Playwright `ten real restarts` | 10회 연속 실제 승리→R/버튼 새게임, 매 판 같은 시간 이동량·발사 수·목숨/점수 비교 | 기존10회 누적 안정성 유지. 자연 도달3회는TC-14/TC-L06으로 분리. CDP의 실제 게임 이벤트 구독 수 비교 |
 | TC-19 | REQ-08 | Node `original scripts`, `source exposes no`, `production uses relative`; Playwright `built game runs at repository subpath` | manifest/lock·메모리 빌드, 4173의 /space-Invaders-demo01/ 실제 dist 로드·Space | 상대 JS/CSS, 외부 요청·개발 API·문서 부재, DOM 점수·버튼, 404·콘솔 오류 없음 |
 | TC-20 | REQ-08 | Playwright `responsive Canvas`, `native button`, `missing Canvas context` | 좁은 화면, 키보드 버튼·네이티브 컨트롤, Canvas 실패 주입 | 논리 800×600·가로 넘침 없음, 기본 키 조작 보존, 실패 시 한국어 오류와 입력 차단 |
 | TC-21 | REQ-01~08 | 실제 사람 관찰 후보 | preview4173에서 시작·이동·발사·승패·재시작 직접 플레이 | 사람의 체감·시각 관찰. 자동 브라우저와 구분하고 실제 보고 없으면 미확인 |
@@ -75,3 +75,20 @@ TEST_RESULTS에는 실행 시각·대상 SHA/미커밋 파일·명령 종료 상
 | TC-D06 | AC6/7 | REQ-01~08·TC-P01~06·전체 Node/E2E/build·별도 preview·통합 후 실제 Pages를 다시 확인 |
 
 선택/경계 fixture는 순수 모델에만 구성한다. 브라우저는 실제 select/키/버튼과 제어 시간을 사용하며 모델 전역 API를 추가하지 않는다. 조작된 DOM change는 UI 잠금을 우회해도 모델 설정이 바뀌지 않는지 확인하는 금지 입력 검사다. 사람 직접 플레이와 실제 OS 포커스는 자동 Chromium과 구분한다. 08-01에는 테스트 실행이나 통과 판정을 만들지 않는다.
+
+## 7. CHG-03 검사 계획 (09-01)
+
+| TC | 수용 기준 | 정상·경계·금지 절차와 기대값 |
+|---|---|---|
+| TC-L01 | AC1/3 | 생성/시작/양쪽 종료 재시작의 3목숨·0점·선택 난이도. 잘못된 목숨 타입·소수·음수·4·mode와 0의 모순은 명시적 오류 |
+| TC-L02 | AC2/3 | 모든 난이도·목숨3/2/1에서 dt0의 519.999/520/520.001, 여러 적 도달·반복 update·같은 clock advance 서브스텝에도 1회만 차감 |
+| TC-L03 | AC4/5/10/13 | retry의 전체 상태/쿨다운·실패 점수 동결, start/restart/P와 선택 변경 무효. 추가 시간만으로 자동 부활 없음 |
+| TC-L04 | AC6 | 점수·탄환·위치·방향·대기시간을 가진 retry에서 새 시도. 남은1/2와 현재 난이도만 보존, 24적·점수0·빈 탄환·초기 위치·방향/시계 초기화 |
+| TC-L05 | AC7/8 | 위험한 마지막 적 명중은 won/미차감/240. 다른 생존 위험 적은 차감. won/lost의 최종 점수·목숨 고정 |
+| TC-L06 | AC1/3~6/8/9 | 실제 키·버튼으로 3→2→1→0, retry 안내/실패 점수·목숨 텍스트, Enter/버튼 재도전과 종료 R/버튼 새 게임. 시도 점수0·새 게임 목숨3 |
+| TC-L07 | AC5/10/11 | 세 난이도의 P/긴 retry60초·repeat Enter·금지 R/P/이동/발사·선택 DOM 우회. 새 Enter/버튼 뒤 키 해제·첫 발사·시간 점프 없음, 10회 재시작/정지 구독 안정성 |
+| TC-L08 | AC12/13 | 기존 수치/충돌/점수/세 속도/P·Node/E2E/build·별도 하위 경로 preview·실제 Pages. 전역 치트/외부 에셋/추가 의존성 없음 |
+
+최초 520 도달=lost 기대만 CHG-03의 retry/남은 목숨으로 바꾸고, 목숨1의 최종 lost는 새 검사로 보장한다. 종료 후 재시작·충돌·속도·발사·P 검사는 유지·확장한다. 10회 누적 새 게임 검사는 승리 경로로 수행하여 매번 3번의 자연 도달을 중복 대기하지 않으며, 자연 도달과 수동 재도전은 별도 실제 UI에서 검증한다. 반복 횟수·수치·실패 조건을 완화하거나 게임 상태를 주입하지 않는다. 기존 TEST_RESULTS의 과거 결과는 바꾸지 않는다.
+
+09-01은 계획 채택만이며 테스트 코드·실행은 09-02다. 사람의 직접 플레이·OS 포커스·다른 브라우저는 도구 검증과 분리하여 미확인으로 남긴다.

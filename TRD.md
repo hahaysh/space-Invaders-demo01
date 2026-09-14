@@ -21,11 +21,12 @@
 
 ## 3. 상태와 입력
 
-모델은 상태, 플레이어, 적 배열, 탄환 배열, 점수, 편대 방향, 발사 대기시간을 가진다. 최초 title, 시작 시 playing, 충돌 결과에 따른 won/lost, 종료에서만 새 판으로 재시작한다. 07-02 CHG-01 설계에는 playing↔paused 전환을 추가한다.
+모델은 상태, 플레이어, 적 배열, 탄환 배열, 점수, 편대 방향, 발사 대기시간을 가진다. CHG-01은 playing↔paused, CHG-02는 선택/현재 난이도를 추가했다. CHG-03은 lives와 retry를 추가하며 새 게임과 같은 게임의 재도전은 11절에서 구분한다.
 
 | 입력 | 허용 상태 | 처리 |
 |---|---|---|
 | Enter·시작 버튼 | title | 초기화 후 playing |
+| 반복이 아닌 Enter·재도전 버튼 | retry | 남은 목숨·현재 난이도 유지, 해당 시도 초기화 후 playing |
 | 좌우·A/D | playing | 방향별 활성 입력을 합쳐 양쪽 동시 입력은 0 |
 | Space | playing | 키 유지 상태와 시뮬레이션 발사 대기시간 사용 |
 | R·재시작 버튼 | won/lost | 전체 한 판 상태 초기화 후 playing |
@@ -40,7 +41,7 @@ RAF 루프는 하나만 생성한다. 고정 간격 1/120초로 누적 시간을
 
 발사 대기시간은 playing의 시뮬레이션 시간으로만 줄인다. 첫 대기시간은 0이며 Space 유지와 함께 첫 발사를 허용하고 이후 최소 0.2초를 보장한다. 시간 비교의 부동소수점 오차는 테스트로 관리한다.
 
-한 갱신에서는 플레이어·발사·탄환·적 이동을 반영하고, 엄격한 사각형 면적 겹침으로 탄환별 최대 한 적을 제거한다. 제거된 적을 재처리하지 않아 중복 득점을 막는다. 이어서 생존 적 하단 >= 520이면 lost, 그렇지 않고 적이 없으면 won이다. 종료 상태에서는 시뮬레이션과 점수 갱신을 하지 않는다.
+한 갱신에서는 플레이어·발사·탄환·적 이동을 반영하고, 엄격한 사각형 면적 겹침으로 탄환별 최대 한 적을 제거한다. 제거된 적을 재처리하지 않아 중복 득점을 막는다. CHG-03은 이어서 생존 적 하단>=520이면 목숨1 감소 후 retry/lost, 그렇지 않고 적이 없으면 won으로 바꾼다. playing 밖에서는 기존 가드로 시뮬레이션과 점수 갱신을 하지 않는다.
 
 생존 적의 외곽으로 경계를 판단하고 이동량을 화면 안으로 제한한다. 한 번의 경계 도달에 방향 반전과 24px 하강을 한 번만 적용한다. 탄환 생성 위치는 PRD의 x+18,y538이며 하단 <= 0인 탄환은 제거한다.
 
@@ -97,15 +98,31 @@ src/main.js의 기존 키 핸들러에서 KeyP와 repeat 무시를 처리하고 
 
 src/game.js에 불변 DIFFICULTIES 설정을 두고 easy/normal/hard의 표시 이름과 적 속도를 함께 정의한다. normal의 속도는 기존 RULES.enemySpeed(64)를 재사용한다. 상태에는 selectedDifficulty(다음 선택)와 difficulty(이번 게임)를 구분한다. createState(difficulty = 'normal')는 둘을 같은 값으로 초기화하며 누락/undefined만 기본값을 적용한다. 지원하지 않는 문자열·null·다른 타입·상속 속성 이름은 TypeError로 드러낸다(AC1/5/9).
 
-순수 selectDifficulty(state, value)는 상태와 값을 검증하고 title/won/lost에서 selectedDifficulty만 바꾼다. playing/paused의 유효한 변경 시도는 같은 상태를 반환한다. 지원하지 않는 값은 상태와 무관하게 명시적 오류다. start/restart가 createState(state.selectedDifficulty)를 사용해 이번 게임에 적용하며 이후 P나 update가 이를 바꾸지 않는다(AC2/3/4/7).
+순수 selectDifficulty(state, value)는 상태와 값을 검증하고 title/won/lost에서 selectedDifficulty만 바꾼다. playing/paused와 CHG-03의 retry에서 유효한 변경 시도는 같은 상태를 반환한다. 지원하지 않는 값은 상태와 무관하게 명시적 오류다. start/restart가 createState(state.selectedDifficulty)를 사용해 이번 게임에 적용하며 이후 P나 update가 이를 바꾸지 않는다(AC2/3/4/7).
 
 moveFormation에 이번 게임 설정의 enemySpeed를 전달한다. 기존 travel = speed * dt와 그 travel을 사용한 경계 비교·위치 제한을 유지한다. 현재 별도 벽 도달 시간 계산은 없으므로 새 시간 알고리즘을 추가하지 않으며 거리와 경계에 다른 속도가 남지 않게 한다(AC6/10).
 
-index.html/src/styles.css에 label이 있는 기본 select와 난이도 텍스트를 추가하고 src/main.js가 change를 모델에 전달한다. 렌더링 때 모델 값으로 select를 다시 맞추고 playing/paused에서는 disabled로 설정한다. title의 텍스트는 선택값, 시작 뒤 텍스트는 이번 게임값으로 표시한다. 다음 선택을 바꿔도 이미 끝난 게임의 설정은 보존한다. 기존 nativeControl/focusin 입력 처리를 유지하여 select의 방향키·Enter·P를 가로채지 않는다(AC4/5/8).
+index.html/src/styles.css에 label이 있는 기본 select와 난이도 텍스트를 추가하고 src/main.js가 change를 모델에 전달한다. 렌더링 때 모델 값으로 select를 다시 맞추고 playing/paused 및 CHG-03의 retry에서는 disabled로 설정한다. title의 텍스트는 선택값, 시작 뒤 텍스트는 이번 게임값으로 표시한다. 다음 선택을 바꿔도 이미 끝난 게임의 설정은 보존한다. 기존 nativeControl/focusin 입력 처리를 유지하여 select의 방향키·Enter·P를 가로채지 않는다(AC4/5/8).
 
 잘못된 UI 값은 기존 fail의 한국어 오류·console.error 경로로 알리고 입력을 차단한다. 이미 예약된 frame도 failed 상태에서 더 진행하거나 새 RAF를 예약하지 않게 한다. 조작된 DOM 이벤트와 잘못된 값 검사는 제품 전역 API 대신 실제 DOM 이벤트와 명시적 오류 표시로 확인한다. 설정·상태를 window에 노출하거나 브라우저 저장을 추가하지 않는다.
 
 설계 시 현재의 P·편대·입력 구조와 충돌은 없었다. D1 모델/Node를 먼저 검증한 뒤 D2 UI/Chromium을 진행하며 현재는 문서만 채택한다.
+
+## 11. CHG-03 설계 채택 (09-01)
+
+L1은 src/game.js/tests/game.test.js만 다룬다. RULES의 initialLives=3과 상태 lives, mode retry, transition action retry를 추가한다. lives는0~3 정수로 검증하고 lost는0, retry는1/2, 그 외 활성/승리 상태는 양수여야 한다. 잘못된 값·상태는 기존 명시적 오류 경로를 사용한다. 새 게임 생성은3목숨·0점·선택 난이도다(AC1/3).
+
+update의 충돌/득점 뒤 기존 some 도달 조건에서 lives를 정확히1 감소하고 즉시 retry 또는 lost로 전환한다. 적마다 차감하지 않으며 update의 playing 가드와 기존 clock callback의 전환 시 clearInput/reset으로 같은 프레임의 후속 서브스텝 차감을 막는다. 마지막 적을 제거했다면 도달할 생존 적이 없어 won이며, 다른 위험 적이 있으면 도달 분기가 먼저다(AC2/7).
+
+retry action은 retry 상태에서만 동작한다. 기존 createState(state.difficulty)로 시도 객체를 새로 만들되 lives와 현재/선택 난이도는 기존 값으로 보존하고 mode를 playing으로 바꾼다. start/restart는 기존 선택값 기반 새 게임 생성으로3을 복구한다. 두 초기화 책임을 구분하며 점수·24적·방향·플레이어·탄환·쿨다운의 생성 코드는 재사용한다. 모델에 별도 경과시간 필드는 없으며 어댑터의 clock 기준·나머지 시간 초기화가 시도 시간 책임이다(AC1/6).
+
+L2는 src/main.js/index.html/e2e/game.spec.js와 필요한 경우에만 src/styles.css를 다룬다. 기존 점수 영역에 DOM 목숨 텍스트, overlay에 retry 안내/실패 점수와 별도 재도전 버튼을 연결한다. 새 Enter는 retry action, title에서는 start로 전달한다. 게임용 R/P/이동/발사는 retry에서 무시한다. nativeControl 예외는 유지하되 재도전 버튼의 반복 Enter가 기본 클릭을 일으키지 않게 차단한다. 버튼 조작 뒤 포커스를 해제하고 fail은 새 버튼도 비활성화한다(AC4/5/8/9).
+
+기존 clearInput/clock.reset을 모든 전환·blur에 재사용하고 retry/paused에서는 clock.advance를 호출하지 않는다. 재도전에도 새 RAF·리스너·타이머를 만들지 않는다. 선택 가능 상태는 title/won/lost의 허용 목록 하나를 UI와 모델 양쪽에서 지키며 retry는 잠근다. 세 난이도와 P를 조합하고 긴 대기·반복 입력·재도전 후 첫 발사를 실제 UI에서 확인한다(AC10/11).
+
+최초 520 도달=lost라는 규칙을 재사용하지 않고 CHG-03에 따른 retry/lost로 기존 기대값을 바꾼다. 정확한 수치·충돌·속도·P·양쪽 종료의 R/버튼 검사는 보존·확장한다. 기존 10회 새 게임 재시작은 실제 승리 경로로 반복하며, 3회 자연 도달과 Enter/버튼 재도전·최종 lost는 별도 실제 UI 검사로 유지한다. 이는 자연 패배 대기가 목숨 수만큼 늘어나는 것과 누적 초기화 검사의 책임을 분리한 검증 설계다.
+
+문서만 채택했으며 모델 A의 npm test·diff 검토 후에만 UI B를 진행한다. 전역 상태 API·새 의존성·배포 설정 변경은 없다.
 
 ## 설계 승인
 
