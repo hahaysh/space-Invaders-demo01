@@ -34,6 +34,7 @@ async function listenerCounts(cdp) {
     ['document.querySelector("#start")', ['click']],
     ['document.querySelector("#restart")', ['click']],
     ['document.querySelector("#difficulty")', ['change']],
+    ['document.querySelector("#retry")', ['click']],
   ];
   for (const [expression, eventTypes] of targets) {
     const { result } = await cdp.send('Runtime.evaluate', { expression });
@@ -61,6 +62,7 @@ test.afterEach(async ({ page }) => {
 
 test('REQ-01/08 semantic title, inactive keys, no state globals and responsive Canvas', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Orbit Defender');
+  await expect(page.locator('#lives')).toHaveText('남은 목숨: 3');
   const before = await picture(page);
   await page.keyboard.press('r');
   await page.keyboard.press('p');
@@ -236,11 +238,13 @@ test('REQ-07 ten real restarts keep movement, firing and listener counts stable'
   expect(baseline[2]).toEqual(['click']);
   expect(baseline[3]).toEqual(['click']);
   expect(baseline[4]).toEqual(['change']);
+  expect(baseline[5]).toEqual(['click']);
   await page.keyboard.press('Enter');
   for (let round = 0; round <= 10; round += 1) {
     await advance(page, 32);
     expect((await picture(page)).left).toBe(381);
     expect(await score(page)).toBe(0);
+    await expect(page.locator('#lives')).toHaveText('남은 목숨: 3');
     await page.keyboard.down('ArrowRight');
     await advance(page, 512);
     expect(Math.abs((await picture(page)).left - 381 - .512 * 320)).toBeLessThanOrEqual(320 / 120 + 1);
@@ -253,8 +257,12 @@ test('REQ-07 ten real restarts keep movement, firing and listener counts stable'
     await page.keyboard.up('Space');
     expect(await listenerCounts(cdp)).toEqual(baseline);
     if (round === 10) break;
-    await advance(page, 55000);
-    await expect(page.locator('#status')).toContainText('패배');
+    // CHG-03 keeps ten full new-game cycles; natural three-arrival loss is tested separately.
+    await page.keyboard.down('ArrowLeft');
+    await advance(page, 512);
+    await page.keyboard.up('ArrowLeft');
+    await clearWave(page);
+    await expect(page.locator('#status')).toContainText('승리');
     if (round % 2 === 0) await page.keyboard.press('r');
     else await page.getByRole('button', { name: '다시 도전' }).click();
   }
@@ -413,6 +421,119 @@ async function clearWave(page) {
   expect(await score(page)).toBe(240);
 }
 
+async function exhaustLives(page, attemptMs = 55000) {
+  for (const remaining of [2, 1, 0]) {
+    await advance(page, attemptMs);
+    await expect(page.locator('#lives')).toHaveText(`남은 목숨: ${remaining}`);
+    await expect(page.locator('#status')).toContainText(remaining ? '재도전 대기' : '패배');
+    if (remaining === 2) await page.keyboard.press('Enter');
+    else if (remaining === 1) await page.getByRole('button', { name: '재도전' }).click();
+  }
+}
+
+for (const [value, attemptMs] of [['easy', 110000], ['normal', 55000], ['hard', 40000]]) {
+  test(`CHG-03 ${value} three arrivals, frozen retry score, fresh Enter/button and preserved difficulty`, async ({ page }, testInfo) => {
+    test.setTimeout(240000);
+    const select = page.getByRole('combobox', { name: '다음 게임 난이도' });
+    const retry = page.getByRole('button', { name: '재도전' });
+    const cdp = await page.context().newCDPSession(page);
+    const baseline = await listenerCounts(cdp);
+    await select.selectOption(value);
+    await page.getByRole('button', { name: '방어 시작' }).click();
+    await advance(page, 32);
+    await page.keyboard.down('Space');
+    await advance(page, 1800);
+    await page.keyboard.up('Space');
+    expect(await score(page)).toBeGreaterThan(0);
+    for (const remaining of [2, 1, 0]) {
+      await page.keyboard.press('p');
+      const paused = await picture(page);
+      await page.clock.fastForward(60000);
+      expect(await picture(page)).toEqual(paused);
+      await expect(page.locator('#lives')).toHaveText(`남은 목숨: ${remaining + 1}`);
+      await page.keyboard.press('p');
+      await page.keyboard.down('Enter');
+      await advance(page, attemptMs);
+      await expect(page.locator('#lives')).toHaveText(`남은 목숨: ${remaining}`);
+      const failedScore = await score(page);
+      const frozen = await picture(page);
+      if (!remaining) {
+        await expect(page.locator('#status')).toContainText('패배');
+        await expect(page.locator('#detail')).toContainText(`최종 점수 ${failedScore}점`);
+        await expect(select).toBeEnabled();
+        await page.keyboard.up('Enter');
+        await advance(page, 1000);
+        expect(await picture(page)).toEqual(frozen);
+        break;
+      }
+      await expect(page.locator('#status')).toHaveText('재도전 대기');
+      await expect(page.locator('#detail')).toContainText(`이번 시도 점수 ${failedScore}점`);
+      await expect(page.locator('#detail')).toContainText('점수 0부터');
+      await expect(retry).toBeVisible();
+      await expect(page.locator('#restart')).toBeHidden();
+      await page.keyboard.down('Enter');
+      await retry.focus();
+      await page.keyboard.down('Enter');
+      await expect(page.locator('#status')).toHaveText('재도전 대기');
+      await retry.evaluate((element) => element.blur());
+      await page.keyboard.up('Enter');
+      await page.keyboard.press('r');
+      await page.keyboard.press('p');
+      await page.keyboard.down('ArrowRight');
+      await page.keyboard.down('Space');
+      await select.evaluate((element, other) => {
+        element.disabled = false;
+        element.value = other;
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value === 'hard' ? 'easy' : 'hard');
+      await expect(select).toBeDisabled();
+      await expect(select).toHaveValue(value);
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      await page.clock.fastForward(60000);
+      expect(await picture(page)).toEqual(frozen);
+      expect(await score(page)).toBe(failedScore);
+      await expect(page.locator('#lives')).toHaveText(`남은 목숨: ${remaining}`);
+      await expect(page.locator('#status')).toHaveText('재도전 대기');
+      if (remaining === 2) await page.screenshot({ path: testInfo.outputPath(`${value}-retry.png`) });
+      if (remaining === 2) await page.keyboard.press('Enter');
+      else await retry.click();
+      await page.keyboard.down('ArrowRight');
+      await page.keyboard.down('Space');
+      await advance(page, 64);
+      await expect(page.locator('#status')).toHaveText('방어 진행 중');
+      await expect(page.locator('#lives')).toHaveText(`남은 목숨: ${remaining}`);
+      await expect(select).toHaveValue(value);
+      await expect(select).toBeDisabled();
+      expect(await score(page)).toBe(0);
+      expect((await picture(page)).left).toBe(381);
+      expect((await picture(page)).bulletCount).toBe(0);
+      expect(await page.evaluate(() => document.activeElement.tagName)).not.toBe('BUTTON');
+      await page.keyboard.up('ArrowRight');
+      await page.keyboard.up('Space');
+      await page.keyboard.down('Space');
+      await advance(page, 16);
+      expect((await picture(page)).bulletCount).toBe(1);
+      await page.keyboard.up('Space');
+      expect(await listenerCounts(cdp)).toEqual(baseline);
+    }
+    await cdp.detach();
+  });
+}
+
+test('CHG-03 an actual victory after retry preserves two lives and the final attempt score', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.keyboard.press('Enter');
+  await advance(page, 55000);
+  await expect(page.locator('#lives')).toHaveText('남은 목숨: 2');
+  await page.getByRole('button', { name: '재도전' }).click();
+  await advance(page, 32);
+  await clearWave(page);
+  await expect(page.locator('#status')).toContainText('승리');
+  await expect(page.locator('#lives')).toHaveText('남은 목숨: 2');
+  await expect(page.locator('#detail')).toContainText('최종 점수 240점 · 남은 목숨 2');
+  await assertFrozenAndRestart(page, '승리', 'button');
+});
+
 for (const outcome of ['won', 'lost']) {
   test(`CHG-02 ${outcome} keeps current difficulty until an easy restart is applied`, async ({ page }) => {
     test.setTimeout(90000);
@@ -421,7 +542,7 @@ for (const outcome of ['won', 'lost']) {
     await page.getByRole('button', { name: '방어 시작' }).click();
     await advance(page, 32);
     if (outcome === 'won') await clearWave(page);
-    else await advance(page, 40000);
+    else await exhaustLives(page, 40000);
     await expect(page.locator('#status')).toContainText(outcome === 'won' ? '승리' : '패배');
     await expect(select).toBeEnabled();
     await select.selectOption('easy');
@@ -431,6 +552,7 @@ for (const outcome of ['won', 'lost']) {
     await expect(page.locator('#difficulty-current')).toHaveText('이번 게임 난이도: 쉬움');
     await expect(select).toBeDisabled();
     expect(await score(page)).toBe(0);
+    await expect(page.locator('#lives')).toHaveText('남은 목숨: 3');
     const x = (await picture(page)).enemyLeft;
     await advance(page, 512);
     expect(Math.abs((await picture(page)).enemyLeft - x - 32 * .512)).toBeLessThanOrEqual(32 / 120 + 1);
@@ -444,6 +566,7 @@ for (const outcome of ['won', 'lost']) {
 async function assertFrozenAndRestart(page, outcome, method) {
   await expect(page.locator('#status')).toContainText(outcome);
   const finalScore = await score(page);
+  const finalLives = await page.locator('#lives').textContent();
   const frozen = await picture(page);
   await expect(page.locator('#detail')).toContainText(`최종 점수 ${finalScore}점`);
   await page.keyboard.press('Enter');
@@ -453,6 +576,7 @@ async function assertFrozenAndRestart(page, outcome, method) {
   await advance(page, 1000);
   expect(await picture(page)).toEqual(frozen);
   expect(await score(page)).toBe(finalScore);
+  await expect(page.locator('#lives')).toHaveText(finalLives);
   if (method === 'key') await page.keyboard.press('r');
   else await page.getByRole('button', { name: '다시 도전' }).click();
   await page.keyboard.down('ArrowRight');
@@ -460,6 +584,7 @@ async function assertFrozenAndRestart(page, outcome, method) {
   await advance(page, 64);
   await expect(page.locator('#status')).toHaveText('방어 진행 중');
   expect(await score(page)).toBe(0);
+  await expect(page.locator('#lives')).toHaveText('남은 목숨: 3');
   expect((await picture(page)).left).toBe(381);
   expect((await picture(page)).bulletCount).toBe(0);
   await page.keyboard.up('ArrowRight');
@@ -473,9 +598,9 @@ async function assertFrozenAndRestart(page, outcome, method) {
 
 for (const method of ['key', 'button']) {
   test(`REQ-06/07 natural no-shoot defeat freezes and ${method} restarts`, async ({ page }) => {
-    test.setTimeout(90000);
+    test.setTimeout(180000);
     await page.keyboard.press('Enter');
-    await advance(page, 55000);
+    await exhaustLives(page);
     expect(await score(page)).toBe(0);
     await assertFrozenAndRestart(page, '패배', method);
   });

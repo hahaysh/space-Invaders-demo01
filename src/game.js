@@ -5,7 +5,7 @@ export const RULES = Object.freeze({
   fireInterval: 0.2, fixedStep: 1 / 120, maxFrame: 0.1, defenseY: 520,
   enemyRows: 3, enemyColumns: 8, enemyWidth: 40, enemyHeight: 24,
   enemyX: 112, enemyY: 72, enemyGapX: 72, enemyGapY: 48,
-  enemySpeed: 64, enemyDrop: 24, pointsPerEnemy: 10,
+  enemySpeed: 64, enemyDrop: 24, pointsPerEnemy: 10, initialLives: 3,
 });
 
 export const DIFFICULTIES = Object.freeze({
@@ -60,6 +60,7 @@ export function createState(difficulty = 'normal') {
   difficultyConfig(difficulty);
   return {
     mode: 'title',
+    lives: RULES.initialLives,
     selectedDifficulty: difficulty,
     difficulty,
     player: { x: RULES.playerX, y: RULES.playerY, width: RULES.playerWidth, height: RULES.playerHeight },
@@ -76,7 +77,13 @@ function finite(value, name) {
 }
 
 export function validateState(state) {
-  if (!state || !['title', 'playing', 'paused', 'won', 'lost'].includes(state.mode)) throw new TypeError('Invalid game mode');
+  if (!state || !['title', 'playing', 'paused', 'retry', 'won', 'lost'].includes(state.mode)) throw new TypeError('Invalid game mode');
+  if (!Number.isInteger(state.lives) || state.lives < 0 || state.lives > RULES.initialLives) {
+    throw new RangeError('Invalid lives');
+  }
+  if ((state.mode === 'lost') !== (state.lives === 0) || (state.mode === 'retry' && state.lives === RULES.initialLives)) {
+    throw new RangeError('Lives do not match mode');
+  }
   difficultyConfig(state.selectedDifficulty);
   difficultyConfig(state.difficulty);
   if (!Array.isArray(state.bullets)) throw new TypeError('bullets must be an array');
@@ -119,12 +126,18 @@ export function selectDifficulty(state, value) {
 
 export function transition(state, action) {
   validateState(state);
-  if (!['start', 'restart', 'togglePause'].includes(action)) throw new TypeError('Unknown game action');
+  if (!['start', 'restart', 'retry', 'togglePause'].includes(action)) throw new TypeError('Unknown game action');
   if (action === 'togglePause' && ['playing', 'paused'].includes(state.mode)) {
     return { ...state, mode: state.mode === 'playing' ? 'paused' : 'playing' };
   }
   if (action === 'start' && state.mode === 'title') return { ...createState(state.selectedDifficulty), mode: 'playing' };
   if (action === 'restart' && ['won', 'lost'].includes(state.mode)) return { ...createState(state.selectedDifficulty), mode: 'playing' };
+  if (action === 'retry' && state.mode === 'retry') {
+    return {
+      ...createState(state.difficulty), mode: 'playing',
+      lives: state.lives, selectedDifficulty: state.selectedDifficulty,
+    };
+  }
   return state;
 }
 
@@ -186,7 +199,9 @@ export function update(state, input, dt) {
     next.score += RULES.pointsPerEnemy;
     return false;
   });
-  if (next.enemies.some((enemy) => enemy.y + enemy.height >= RULES.defenseY)) next.mode = 'lost';
-  else if (next.enemies.length === 0) next.mode = 'won';
+  if (next.enemies.some((enemy) => enemy.y + enemy.height >= RULES.defenseY)) {
+    next.lives -= 1;
+    next.mode = next.lives === 0 ? 'lost' : 'retry';
+  } else if (next.enemies.length === 0) next.mode = 'won';
   return next;
 }

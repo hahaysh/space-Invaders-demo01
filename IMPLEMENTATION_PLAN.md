@@ -102,8 +102,8 @@ AGENTS의 예정 명령은 실제 스크립트와 실행 결과가 확인되면 
 
 | 작업 | 기준·허용 파일 | 의존성·완료 조건 | 현재 상태 |
 |---|---|---|---|
-| L1 모델·Node | AC1~8/10~13, src/game.js·tests/game.test.js | lives/retry·충돌 후1회 차감·시도/새게임 초기화·0경계·금지 동작·세 난이도/P. npm test 및 A diff를 먼저 검토 | 설계 채택, 미구현 |
-| L2 입력·화면·E2E | AC4~6/8~11, src/main.js·index.html·e2e/game.spec.js, 필요한 src/styles.css | L1 후 목숨/점수/안내·새 Enter/버튼·repeat·잠금·시간/키 해제, 실제3→2→1→0·기존 UI 회귀 | 미구현 |
-| L3 전체 검증·공개 | AC1~13, 필요한 요청·계획·결과 문서 | Node/E2E/build·별도4173 preview·main 게시·실제Actions/아티팩트/공개 URL, 기준별 판정과 과거 이력 보존 | 미실행 |
+| L1 모델·Node | AC1~8/10~13, src/game.js·tests/game.test.js | lives/retry·충돌 후1회 차감·시도/새게임 초기화·0경계·금지 동작·세 난이도/P. npm test 및 A diff를 먼저 검토 | 완료, A Node33/33과 두 파일 diff 검토 후 B 진행 |
+| L2 입력·화면·E2E | AC4~6/8~11, src/main.js·index.html·e2e/game.spec.js, 필요한 src/styles.css | L1 후 목숨/점수/안내·새 Enter/버튼·repeat·잠금·시간/키 해제, 실제3→2→1→0·기존 UI 회귀 | 완료, Node33/E2E28/build. 기존 CSS 재사용, R10 |
+| L3 전체 검증·공개 | AC1~13, 필요한 요청·계획·결과 문서 | Node/E2E/build·별도4173 preview·main 게시·실제Actions/아티팩트/공개 URL, 기준별 판정과 과거 이력 보존 | 로컬 전체·preview 완료, 원격 게시/공개 확인 예정 |
 
 TEST_PLAN의 TC-L01~08과 기존 TC-01~22/TC-P/TC-D를 연결한다. TC-18의 10회 완전 재시작은 실제 승리→R/버튼으로 유지하고, 자연 도달 3회/수동 재도전/최종 lost는 별도 검사한다. 게임 속도를 높이거나 전역 상태를 주입해 대기를 줄이지 않는다. 설정·의존성·워크플로는 변경하지 않는다.

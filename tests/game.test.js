@@ -108,7 +108,7 @@ test('CHG-01 AC1/8 pause toggles only playing and paused; other actions remain g
   assert.deepEqual(transition(paused, 'togglePause'), before);
   for (const action of ['start', 'restart']) assert.equal(transition(paused, action), paused);
   for (const mode of ['title', 'won', 'lost']) {
-    const inactive = { ...createState(), mode };
+    const inactive = { ...createState(), mode, lives: mode === 'lost' ? 0 : 3 };
     assert.equal(transition(inactive, 'togglePause'), inactive);
   }
 });
@@ -170,7 +170,7 @@ test('CHG-02 AC1/9 difficulty defaults are distinct from unsupported values', ()
 
 test('CHG-02 AC2/3/4 pending selection applies only on start or restart and is locked during play', () => {
   for (const mode of ['title', 'won', 'lost']) {
-    const original = { ...createState(), mode };
+    const original = { ...createState(), mode, lives: mode === 'lost' ? 0 : 3 };
     const selected = selectDifficulty(original, 'hard');
     assert.equal(selected.selectedDifficulty, 'hard');
     assert.equal(selected.difficulty, 'normal');
@@ -338,11 +338,19 @@ test('REQ-04/05 rejects invalid enemy identities, direction and score', () => {
   assert.throws(() => update({ ...game, enemies: [{ ...game.enemies[0], width: 41 }] }, idleInput(), 0), /geometry/);
 });
 
-test('REQ-06 survivor bottom below / exactly at / above 520 determines loss', () => {
-  for (const [y, mode] of [[495.999, 'playing'], [496, 'lost'], [496.001, 'lost']]) {
-    const game = playing();
-    game.enemies = [{ ...game.enemies[0], y }];
-    assert.equal(update(game, idleInput(), 0).mode, mode);
+test('REQ-06 CHG-03 survivor bottom below / exactly at / above 520 deducts one life', () => {
+  for (const difficulty of ['easy', 'normal', 'hard']) {
+    for (const lives of [3, 2, 1]) {
+      for (const y of [495.999, 496, 496.001]) {
+        const game = { ...transition(createState(difficulty), 'start'), lives };
+        game.enemies = [{ ...game.enemies[0], y }];
+        const next = update(game, idleInput(), 0);
+        const reached = y >= 496;
+        assert.equal(next.lives, lives - Number(reached));
+        assert.equal(next.mode, !reached ? 'playing' : lives === 1 ? 'lost' : 'retry');
+        assert.equal(game.lives, lives);
+      }
+    }
   }
 });
 
@@ -355,20 +363,32 @@ test('REQ-06 collision precedes defeat: removed dangerous enemy never causes los
   assert.equal(winner.mode, 'won');
   assert.equal(winner.score, 240);
   assert.equal(winner.enemies.length, 0);
+  assert.equal(winner.lives, 3);
+  for (const lives of [1, 2]) {
+    const lowLifeWinner = update({ ...game, lives }, idleInput(), 0);
+    assert.equal(lowLifeWinner.mode, 'won');
+    assert.equal(lowLifeWinner.lives, lives);
+    assert.equal(lowLifeWinner.score, 240);
+  }
   const stillPlaying = update({ ...game, enemies: [...game.enemies, { ...createEnemies()[1] }], score: 220 }, idleInput(), 0);
   assert.equal(stillPlaying.mode, 'playing');
-  const defeated = update({
-    ...game, enemies: [...game.enemies, { ...createEnemies()[1], y: 496 }], score: 220,
-  }, idleInput(), 0);
-  assert.equal(defeated.mode, 'lost');
-  assert.equal(defeated.score, 230);
-  assert.equal(defeated.enemies.length, 1);
+  for (const lives of [3, 2, 1]) {
+    const defeated = update({
+      ...game, lives, enemies: [...game.enemies, { ...createEnemies()[1], y: 496 }], score: 220,
+    }, idleInput(), 0);
+    assert.equal(defeated.mode, lives === 1 ? 'lost' : 'retry');
+    assert.equal(defeated.lives, lives - 1);
+    assert.equal(defeated.score, 230);
+    assert.equal(defeated.enemies.length, 1);
+  }
 });
 
-test('REQ-06 boundary descent is reflected before loss and full clearing wins at 240', () => {
+test('REQ-06 CHG-03 boundary descent is reflected before deduction and full clearing wins at 240', () => {
   const game = playing();
   game.enemies = [{ ...game.enemies[0], x: 759, y: 472 }];
-  assert.equal(update(game, idleInput(), .1).mode, 'lost');
+  const reached = update(game, idleInput(), .1);
+  assert.equal(reached.mode, 'retry');
+  assert.equal(reached.lives, 2);
   const all = playing();
   all.bullets = all.enemies.map((enemy) => ({ x: enemy.x + 2, y: enemy.y + 2, width: 4, height: 12 }));
   const won = update(all, idleInput(), 0);
@@ -379,7 +399,7 @@ test('REQ-06 boundary descent is reflected before loss and full clearing wins at
 test('REQ-06/07 both endings freeze all state and restart to independent initial state', () => {
   for (const mode of ['won', 'lost']) {
     const game = {
-      ...playing(), mode, score: 230, enemies: [{ ...createEnemies()[0], y: 496 }],
+      ...playing(), mode, lives: mode === 'lost' ? 0 : 2, score: 230, enemies: [{ ...createEnemies()[0], y: 496 }],
       bullets: [{ x: 120, y: 500, width: 4, height: 12 }], enemyDirection: -1, cooldown: .17,
       player: { x: 17, y: 550, width: 40, height: 20 },
     };
@@ -396,13 +416,108 @@ test('REQ-06/07 both endings freeze all state and restart to independent initial
   }
 });
 
-test('REQ-06 a complete no-input round reaches defeat without extra enemies or waves', () => {
-  const game = run(playing(), {}, 6600);
-  assert.equal(game.mode, 'lost');
-  assert.equal(game.score, 0);
-  assert.equal(game.enemies.length, 24);
-  assert.ok(game.enemies.some((enemy) => enemy.y + enemy.height >= 520));
-  assert.equal(run(game, {}, 1200), game);
+test('REQ-06 CHG-03 complete no-input rounds reach 3-2-1-0 without automatic revival', () => {
+  let game = playing();
+  for (const remaining of [2, 1, 0]) {
+    game = run(game, {}, 6600);
+    assert.equal(game.mode, remaining ? 'retry' : 'lost');
+    assert.equal(game.lives, remaining);
+    assert.equal(game.score, 0);
+    assert.equal(game.enemies.length, 24);
+    assert.ok(game.enemies.some((enemy) => enemy.y + enemy.height >= 520));
+    assert.equal(run(game, {}, 1200), game);
+    if (remaining) game = transition(game, 'retry');
+  }
+});
+
+test('CHG-03 AC1/3 invalid lives and inconsistent modes fail explicitly', () => {
+  assert.equal(RULES.initialLives, 3);
+  assert.equal(createState().lives, 3);
+  for (const lives of [undefined, null, '3', -.1, -1, .5, 4, NaN, Infinity]) {
+    assert.throws(() => update({ ...playing(), lives }, idleInput(), 0), /lives/i);
+  }
+  for (const mode of ['title', 'playing', 'paused', 'retry', 'won']) {
+    assert.throws(() => transition({ ...createState(), mode, lives: 0 }, 'retry'), /Lives/);
+  }
+  assert.throws(() => transition({ ...createState(), mode: 'lost' }, 'restart'), /Lives/);
+  assert.throws(() => transition({ ...createState(), mode: 'retry' }, 'retry'), /Lives/);
+});
+
+test('CHG-03 AC2/3/6 multiple arrivals deduct once; retries reset attempts, never lives or difficulty', () => {
+  for (const difficulty of ['easy', 'normal', 'hard']) {
+    let game = transition(createState(difficulty), 'start');
+    for (const remaining of [2, 1, 0]) {
+      game = {
+        ...game, score: 20, enemyDirection: -1, cooldown: .17,
+        player: { ...game.player, x: 20 },
+        enemies: createEnemies().slice(2).map((enemy) => ({ ...enemy, y: 496 })),
+        bullets: [{ x: 0, y: 500, width: 4, height: 12 }],
+      };
+      const original = structuredClone(game);
+      const arrived = update(game, idleInput(), 0);
+      assert.equal(arrived.lives, remaining);
+      assert.equal(arrived.mode, remaining ? 'retry' : 'lost');
+      assert.equal(arrived.score, 20);
+      assert.equal(run(arrived, { fire: true, right: true }, 1200), arrived);
+      assert.deepEqual(game, original);
+      if (remaining) {
+        game = transition(arrived, 'retry');
+        assert.deepEqual(game, { ...transition(createState(difficulty), 'start'), lives: remaining });
+        assert.notEqual(game.player, arrived.player);
+        assert.notEqual(game.enemies, arrived.enemies);
+        assert.equal(update(game, { ...idleInput(), fire: true }, 0).bullets.length, 1);
+        const paused = transition(game, 'togglePause');
+        assert.equal(run(paused, { fire: true }, 7200), paused);
+      } else {
+        const selected = selectDifficulty(arrived, 'easy');
+        assert.deepEqual(transition(selected, 'restart'), transition(createState('easy'), 'start'));
+      }
+    }
+  }
+});
+
+test('CHG-03 AC4/5/10/13 retry freezes failed score and cooldown and rejects unrelated actions', () => {
+  const retry = {
+    ...playing(), mode: 'retry', lives: 1, score: 10, cooldown: .19,
+    enemies: createEnemies().slice(1), bullets: [{ x: 0, y: 500, width: 4, height: 12 }],
+  };
+  const snapshot = structuredClone(retry);
+  assert.equal(run(retry, { left: true, fire: true }, 7200), retry);
+  assert.deepEqual(retry, snapshot);
+  for (const action of ['start', 'restart', 'togglePause']) assert.equal(transition(retry, action), retry);
+  assert.equal(selectDifficulty(retry, 'hard'), retry);
+  assert.throws(() => selectDifficulty(retry, 'invalid'), /difficulty/);
+  for (const mode of ['title', 'playing', 'paused', 'won', 'lost']) {
+    const state = { ...createState(), mode, lives: mode === 'lost' ? 0 : 3 };
+    assert.equal(transition(state, 'retry'), state);
+  }
+});
+
+test('CHG-03 AC2/11 one clock frame cannot deduct twice and retry resets the time baseline', () => {
+  let game = playing();
+  game.enemies = game.enemies.map((enemy) => ({ ...enemy, y: 496 }));
+  const clock = createClock((dt) => {
+    const previous = game.mode;
+    game = update(game, idleInput(), dt);
+    if (game.mode !== previous) clock.reset();
+  });
+  clock.advance(0);
+  clock.advance(100);
+  assert.equal(game.lives, 2);
+  assert.equal(game.mode, 'retry');
+  assert.equal(clock.inspect().steps, 1);
+  const frozen = structuredClone(game);
+  clock.advance(60100);
+  clock.advance(60200);
+  assert.deepEqual(game, frozen);
+  game = transition(game, 'retry');
+  clock.reset();
+  const fresh = structuredClone(game);
+  clock.advance(120000);
+  assert.deepEqual(game, fresh);
+  clock.advance(120050);
+  assert.ok(Math.abs(game.enemies[0].x - 112 - 64 * .05) < 1e-9);
+  assert.equal(game.lives, 2);
 });
 
 test('REQ-08 original scripts and stable dependency versions match manifest and lock', async () => {
